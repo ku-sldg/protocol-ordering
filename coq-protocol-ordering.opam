@@ -1,0 +1,32 @@
+# This file was generated from `meta.yml`, please do not edit manually.
+# Follow the instructions on https://github.com/coq-community/templates to regenerate.
+
+opam-version: "2.0"
+maintainer: "palmskog@gmail.com"
+version: "dev"
+
+homepage: "https://github.com/I2S/protocol-ordering"
+dev-repo: "git+https://github.com/I2S/protocol-ordering.git"
+bug-reports: "https://github.com/I2S/protocol-ordering/issues"
+license: ""
+
+synopsis: "Order attestation protocols by their difficulty to attack"
+description: """
+Coq library for ordering attestation protocols by their difficulty to attack. 
+Given the sets of all possible attacks on two attestation protocols, determines 
+which protocol is better."""
+
+build: [make "-j%{jobs}%"]
+install: [make "install"]
+depends: [
+  "coq" {>= "8.20"}
+]
+
+tags: [
+  "logpath:AttestationProtocolOrdering"
+]
+authors: [
+  "Sarah Johnson"
+  "Anna Fritz"
+  "Perry Alexander"
+]
