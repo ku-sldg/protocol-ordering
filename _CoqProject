@@ -5,12 +5,12 @@ theories/utilities/list_removeFirst.v
 theories/utilities/nat_le.v
 theories/utilities/mset.v
 theories/utilities/supports.v
+theories/utilities/min.v
 
 theories/attackgraph.v
 theories/attackgraph_normalization.v
 theories/attackgraph_adversary.v
 theories/attackgraph_ordering.v
-theories/set_minimization.v
 theories/set_ordering.v
 theories/set_relationship.v
 

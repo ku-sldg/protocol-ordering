@@ -238,7 +238,8 @@ Section AttackGraphOrdering.
         destruct HAB; [ left | right ];
         eapply mStrictIncluded_mIncluded1; eauto.
     Qed.
-    
+
+   
     Lemma prec_simeq1 : forall A B C,
         simeq A B ->
         prec B C ->
@@ -267,7 +268,6 @@ Section AttackGraphOrdering.
         eapply mStrictIncluded_mIncluded1; eauto; eapply mIncluded_eqDec; eauto.
     Qed.
 
-
     Lemma preceq_correct : forall A B,
         preceq A B <->
         prec A B \/ simeq A B.
@@ -284,6 +284,16 @@ Section AttackGraphOrdering.
         - destruct H as [H|H].
         -- destruct H as [H' H]; destruct H; split; auto. 
         -- destruct H; split; apply mIncluded_reflexive; auto.
+    Qed.
+
+
+    Lemma preceq_preceq : forall A B,
+        prec A B \/ A = B ->
+        preceq A B.
+    Proof.
+        intros A B H; apply preceq_correct; 
+        destruct H as [HPrec|HEq]; [left|right];
+        [|subst; apply simeq_reflexive]; auto.
     Qed.
 
 End AttackGraphOrdering.

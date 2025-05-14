@@ -3,146 +3,103 @@ Require Import Coq.Lists.List.
 
 Section Supports.
 
-    Definition supports {X : Type} (order : X -> X -> Prop) (S T : list X) : Prop :=
+    Context {X : Type}.
+    Context (rel : X -> X -> Prop).
+    Context (relDec : forall (x y : X), {rel x y} + {~ rel x y}).
+    Context (rel_transitive : forall (x y z : X),
+                                rel x y ->
+                                rel y z ->
+                                rel x z).
+
+    Definition supports (S T : list X) : Prop :=
         forall H, In H T ->
-        exists G, In G S /\ order G H.
+        exists G, In G S /\ rel G H.
 
     Hint Unfold supports : core.
 
-    Lemma supports_reflexive : forall X (order : X -> X -> Prop), 
-        (forall x, order x x) ->
-        forall S, supports order S S.
+    Lemma supports_reflexive : forall S, 
+        (forall (x : X), rel x x) ->
+        supports S S.
     Proof.
-        intros X order HRefl S H HIn;
+        intros S HRefl H HIn;
         exists H; split; auto.
     Qed.
 
-    Lemma supports_transitive : forall X (order : X -> X -> Prop), 
-        (forall x y z, order x y -> 
-                       order y z -> 
-                       order x z) ->
-        forall S T U, supports order S T ->
-                      supports order T U ->
-                      supports order S U.
+    Lemma supports_transitive : forall S T U, 
+        supports S T ->
+        supports T U ->
+        supports S U.
     Proof.
-        intros X order HTrans S T U HST HTU u HIn;
+        intros S T U HST HTU u HIn;
         apply HTU in HIn; destruct HIn as [t HIn]; destruct HIn as [HIn];
         apply HST in HIn; destruct HIn as [s HIn]; destruct HIn;
-        exists s; split; auto; eapply HTrans; eauto.
+        exists s; split; auto; eapply rel_transitive; eauto.
     Qed.
 
-
-
-    Fixpoint getRelatedElement_fix 
-            {X : Type} (order : X -> X -> Prop) (orderDec : forall x y, {order x y} + {~ order x y}) H S : 
-        Prop :=
+    Fixpoint getRelatedElement_fix (H : X) (S : list X) : Prop :=
     match S with 
-    | G::S' => if (orderDec G H)
+    | G::S' => if relDec G H
                then True 
-               else getRelatedElement_fix order orderDec H S'
+               else getRelatedElement_fix H S'
     | nil => False
     end.
 
-    Lemma getRelatedElementDec : forall {X} (order : X -> X -> Prop) orderDec H S,
-        {getRelatedElement_fix order orderDec H S} + {~ getRelatedElement_fix order orderDec H S}.
+    Lemma getRelatedElementDec : forall H S,
+        {getRelatedElement_fix H S} + {~ getRelatedElement_fix H S}.
     Proof.
-        intros X order orderDec H S; 
+        intros H S; 
         induction S as [|G S']; simpl; auto;
-        destruct (orderDec G H); auto.
+        destruct (relDec G H); auto.
     Defined.
-    
 
-    Fixpoint supports_fix 
-            {X : Type} (order : X -> X -> Prop) (orderDec : forall x y, {order x y} + {~ order x y}) S T : 
-        Prop :=
+    Fixpoint supports_fix (S T : list X) : Prop :=
     match T with
-    | H::T' => if (getRelatedElementDec order orderDec H S)
-               then supports_fix order orderDec S T'
+    | H::T' => if (getRelatedElementDec H S)
+               then supports_fix S T'
                else False
     | nil => True
     end.
 
-    Lemma getRelatedElement_exists : forall X (order : X -> X -> Prop) orderDec H S,
-        getRelatedElement_fix order orderDec H S <->
-        exists G, In G S /\ order G H.
+    Lemma getRelatedElement_exists : forall H S,
+        getRelatedElement_fix H S <->
+        exists G, In G S /\ rel G H.
     Proof.
-        intros X order orderDec H S; split; intros HRel.
-        - induction S; simpl in HRel; try (inversion HRel; fail);
-          destruct (orderDec a H).
-        -- exists a; split; simpl; auto.
-        -- apply IHS in HRel; destruct HRel as [G HRel]; destruct HRel;
-           exists G; split; simpl; auto.
-        - induction S; simpl; destruct HRel as [G HRel]; destruct HRel as [HIn HOrd];
+        intros H S; split; intros HRel.
+        - induction S as [|G S']; simpl in HRel; try (inversion HRel; fail);
+          destruct (relDec G H).
+        -- exists G; split; simpl; auto.
+        -- apply IHS' in HRel; destruct HRel as [G' HRel]; destruct HRel;
+           exists G'; split; simpl; auto.
+        - induction S as [|G S']; simpl; destruct HRel as [G' HRel]; destruct HRel as [HIn HOrd];
           try (inversion HIn; fail);
-          destruct (orderDec a H); auto;
+          destruct (relDec G H); auto;
           destruct HIn; subst; try contradiction;
-          apply IHS; exists G; split; auto.
+          apply IHS'; exists G'; split; auto.
     Qed.
 
 
-    Lemma supports_same : forall X (order : X -> X -> Prop) orderDec S T,
-        supports_fix order orderDec S T <->
-        supports order S T.
+    Lemma supports_same : forall S T,
+        supports_fix S T <->
+        supports S T.
     Proof.
-        intros X order orderDec S T; split; intros HSup.
-        - intros H HIn; induction T; try (inversion HIn; fail);
-          simpl in HSup; destruct (getRelatedElementDec order orderDec a S);
+        intros S T; split; intros HSup.
+        - intros G HIn; induction T as [|H T']; try (inversion HIn; fail);
+          simpl in HSup; destruct (getRelatedElementDec H S);
           try (inversion HSup; fail);
           destruct HIn; subst;
-          [ eapply getRelatedElement_exists | apply IHT ]; eauto.
-        - induction T; simpl; auto.
-          destruct (getRelatedElementDec order orderDec a S);
-          [ apply IHT; intros H HIn | apply n; apply getRelatedElement_exists ];
+          [ eapply getRelatedElement_exists | apply IHT' ]; eauto.
+        - induction T as [|H T']; simpl; auto;
+          destruct (getRelatedElementDec H S);
+          [ apply IHT'; intros G HIn | apply n; apply getRelatedElement_exists ];
           apply HSup; simpl; auto.
     Qed.
 
-    Lemma supportsDec : forall {X} (order : X -> X -> Prop) orderDec S T,
-        {supports_fix order orderDec S T} + {~ supports_fix order orderDec S T}.
+    Lemma supportsDec : forall S T,
+        {supports_fix S T} + {~ supports_fix S T}.
     Proof.
-        intros X order orderDec S T; 
-        induction T; simpl; auto;
-        destruct (getRelatedElementDec order orderDec a S); auto.
+        intros S T; 
+        induction T as [|H T']; simpl; auto;
+        destruct (getRelatedElementDec H S); auto.
     Defined.
 
-(*
-    Fixpoint supports_fix 
-            {X : Type} (order : X -> X -> Prop) (orderDec : forall x y, {order x y} + {~ order x y}) S T : 
-        Prop :=
-    match T with
-    | H::T' => getRelatedElement_fix order orderDec H S /\ supports_fix order orderDec S T'
-    | nil => True
-    end.
-
-    Lemma getRelatedElement_exists : forall X (order : X -> X -> Prop) orderDec H S,
-        getRelatedElement_fix order orderDec H S <->
-        exists G, In G S /\ order G H.
-    Proof.
-        intros X order orderDec H S; split; intros HRel.
-        - induction S; simpl in HRel; try (inversion HRel; fail);
-          destruct (orderDec a H).
-        -- exists a; split; simpl; auto.
-        -- apply IHS in HRel; destruct HRel as [G HRel]; destruct HRel;
-           exists G; split; simpl; auto.
-        - induction S; simpl; destruct HRel as [G HRel]; destruct HRel as [HIn HOrd];
-          try (inversion HIn; fail);
-          destruct (orderDec a H); auto;
-          destruct HIn; subst; try contradiction;
-          apply IHS; exists G; split; auto.
-    Qed.
-
-
-    Lemma supports_same : forall X (order : X -> X -> Prop) orderDec S T,
-        supports_fix order orderDec S T <->
-        supports order S T.
-    Proof.
-        intros X order orderDec S T; split; intros HSup.
-        - intros H HIn; induction T; try (inversion HIn; fail);
-          simpl in HSup; destruct HSup; destruct HIn; subst;
-          [ eapply getRelatedElement_exists | apply IHT ]; eauto.
-        - induction T; simpl; auto; split;
-          [ apply getRelatedElement_exists
-          | apply IHT; intros H HIn ];
-          apply HSup; simpl; auto.
-    Qed.
-*)
 End Supports.

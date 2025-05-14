@@ -1,11 +1,13 @@
 Require Import Coq.Lists.List.
 
 Require Import AttestationProtocolOrdering.utilities.supports.
+Require Import AttestationProtocolOrdering.utilities.min.
 
 Require Import AttestationProtocolOrdering.attackgraph.
 Require Import AttestationProtocolOrdering.attackgraph_adversary.
 Require Import AttestationProtocolOrdering.attackgraph_ordering.
-Require Import AttestationProtocolOrdering.set_minimization.
+(*Require Import AttestationProtocolOrdering.set_minimization.*)
+
 
 
 
@@ -84,11 +86,13 @@ Section SetOrdering.
  ** Sets of attack graphs P and Q are equivalent (i.e., P \equiv Q)
  ** if and only if min(P) = min(Q). *)
 
-    Definition equiv (P Q : list (attackgraph components)) : Prop :=
-        equal (min_fix P P) (min_fix Q Q).
+    Definition equiv (P Q : list (attackgraph components)) : Prop := forall P' Q',
+        min_ind prec P P P' ->
+        min_ind prec Q Q Q' ->
+        equal P' Q'.
 
     Definition equiv_fix (P Q : list (attackgraph components)) : Prop :=
-        equal_fix (min_fix P P) (min_fix Q Q).
+        equal_fix (min_fix prec_fix precDec P P) (min_fix prec_fix precDec Q Q).
 
     Hint Unfold equiv : core.
 
@@ -96,11 +100,17 @@ Section SetOrdering.
         equiv_fix P Q <->
         equiv P Q.
     Proof.
-        intros; apply equal_same.
+        intros P Q; split; intros H.
+        - intros P' Q' HMinP HMinQ;
+          apply equal_same; unfold equiv_fix in H;
+          eapply min_spo_same in HMinP, HMinQ; try apply prec_same;
+          rewrite <- HMinP, <- HMinQ; eauto.
+        - apply equal_same; apply H;
+          eapply min_spo_same; try apply prec_same; eauto.
     Qed.
 
     Lemma equivDec : forall P Q,
-        {equiv_fix P Q} + {~equiv_fix P Q}.
+        {equiv_fix P Q} + {~ equiv_fix P Q}.
     Proof.
         intros; apply equalDec.
     Defined.
@@ -108,14 +118,16 @@ Section SetOrdering.
     Theorem equiv_reflexive : forall P,
         equiv P P.
     Proof.
-        intros; apply equal_reflexive.
+        intros; apply equiv_same; apply equal_same; apply equal_reflexive.
     Qed. 
 
     Theorem equiv_symmetric : forall P Q,
         equiv P Q ->
         equiv Q P.
     Proof.
-        intros; apply equal_symmetric; auto.
+        intros P Q H; apply equiv_same; apply equal_same; 
+        apply equiv_same in H; apply equal_same in H;
+        apply equal_symmetric; auto.
     Qed.
 
     Theorem equiv_transitive : forall P Q R,
@@ -123,7 +135,9 @@ Section SetOrdering.
         equiv Q R ->
         equiv P R.
     Proof.
-        intros; eapply equal_transitive; eauto.
+        intros P Q R HPQ HQR; apply equiv_same; apply equal_same;
+        apply equiv_same in HPQ, HQR; apply equal_same in HPQ, HQR;
+        eapply equal_transitive; eauto.
     Qed.
 
 
@@ -163,16 +177,20 @@ Section SetOrdering.
         equiv P Q ->
         leq P Q.
     Proof.
-        intros P Q HEq B HIn; destruct HEq as [HPQ HQP]; 
-        remember (min_fix P P) as P'; remember (min_fix Q Q) as Q';
+        intros P Q HEq B HIn;
+        apply equiv_same in HEq; apply equal_same in HEq; destruct HEq as [HPQ HQP];
+        remember (min_fix prec_fix precDec P P) as P'; remember (min_fix prec_fix precDec Q Q) as Q';
         symmetry in HeqP', HeqQ'; apply min_same in HeqP', HeqQ';
-        pose proof (min_preceq Q Q' HeqQ' B HIn) as H;
+        assert (forall (A B C : attackgraph components), prec_fix A B -> prec_fix B C -> prec_fix A C) as HTrans
+          by (intros; rewrite prec_same; eapply prec_transitive; rewrite <- prec_same; eauto);
+        pose proof (min_spoeq prec_fix HTrans Q Q Q' HeqQ' B HIn) as H;
         destruct H as [A' H]; destruct H as [HIn' H];
         apply HPQ in HIn'; destruct HIn' as [A HIn']; destruct HIn';
         exists A; split;
         [ eapply min_in; eauto | ];
-        apply preceq_correct; apply preceq_correct in H; destruct H; 
-        [ left; eapply prec_simeq1 | right; eapply simeq_transitive ]; eauto.
+        apply preceq_correct; destruct H; 
+        [ left; rewrite prec_same in H; eapply prec_simeq1 
+        | right; subst ]; eauto.
     Qed.
 
     Theorem leq_transitive : forall P Q R,
@@ -185,14 +203,17 @@ Section SetOrdering.
 
 
     Lemma min_leq1 : forall P P',
-        min_ind P P P' ->
+        min_ind prec P P P' ->
         leq P' P.
     Proof.
-        intros P P' HMin B HIn; eapply min_preceq; eauto.
+        intros P P' HMin B HIn;
+        pose proof (min_spoeq prec prec_transitive P P P' HMin B HIn) as HPreceq;
+        destruct HPreceq as [G HPreceq]; destruct HPreceq;
+        exists G; split; auto; apply preceq_preceq; auto.
     Qed.
 
     Lemma min_leq2 : forall P P',
-        min_ind P P P' ->
+        min_ind prec P P P' ->
         leq P P'.
     Proof.
         intros P P' HMin B HIn; exists B; split;
@@ -201,7 +222,7 @@ Section SetOrdering.
 
     Lemma leq_min1 : forall P Q P',
         leq P Q ->
-        min_ind P P P' ->
+        min_ind prec P P P' ->
         leq P' Q.
     Proof.
         intros P Q P' HLeq HMin;
@@ -211,7 +232,7 @@ Section SetOrdering.
 
     Lemma leq_min2 : forall P Q Q',
         leq P Q ->
-        min_ind Q Q Q' ->
+        min_ind prec Q Q Q' ->
         leq P Q'.
     Proof.
         intros P Q Q' HLeq HMin B HIn; apply HLeq; eapply min_in; eauto.
@@ -222,9 +243,7 @@ Section SetOrdering.
         leq Q P ->
         equiv P Q.
     Proof.
-        intros P Q HLeqPQ HLeqQP; unfold equiv;
-        remember (min_fix P P) as P' eqn:HMinP; remember (min_fix Q Q) as Q' eqn:HMinQ;
-        symmetry in HMinP, HMinQ; apply min_same in HMinP, HMinQ.
+        intros P Q HLeqPQ HLeqQP. unfold equiv. intros P' Q' HMinP HMinQ.
         assert (leq P' Q') as HPQ by
         ( pose proof (min_leq1 P P' HMinP); pose proof (min_leq2 Q Q' HMinQ);
           eapply leq_transitive; eauto; eapply leq_transitive; eauto );
@@ -241,8 +260,10 @@ Section SetOrdering.
           apply preceq_correct in HOrd; destruct HOrd;
           [ assert (prec A A') as contra by (eapply prec_transitive; eauto)
           | assert (prec A A') as contra by (eapply prec_simeq1; eauto) ];
-          pose proof (min_minimal Q Q' HMinQ A' HIn) as HMin;
-          apply minimal_same in HMin; apply minimal_same' in HMin;
+          assert (forall (A : attackgraph components), ~ prec A A) as prec_irreflexive
+            by (intros; apply prec_irreflexive; apply simeq_reflexive);
+          pose proof (min_minimal prec prec_irreflexive prec_asymmetric prec_transitive Q Q' HMinQ A' HIn) as HMin;
+          eapply minimal_same in HMin; apply minimal_same' in HMin;
           unfold minimal, not in HMin;  
           eapply HMin; eauto; eapply min_in; eauto.
         - exists B'; auto.
@@ -251,11 +272,18 @@ Section SetOrdering.
           apply preceq_correct in HOrd; destruct HOrd;
           [ assert (prec A A') as contra by (eapply prec_transitive; eauto)
           | assert (prec A A') as contra by (eapply prec_simeq1; eauto) ];
-          pose proof (min_minimal P P' HMinP A' HIn) as HMin;
-          apply minimal_same in HMin; apply minimal_same' in HMin;
+          assert (forall (A : attackgraph components), ~ prec A A) as prec_irreflexive
+            by (intros; apply prec_irreflexive; apply simeq_reflexive);
+          pose proof (min_minimal prec prec_irreflexive prec_asymmetric prec_transitive P P' HMinP A' HIn) as HMin;
+          eapply minimal_same in HMin; apply minimal_same' in HMin;
           unfold minimal, not in HMin;  
           eapply HMin; eauto; eapply min_in; eauto.
         - exists B'; auto.
+        Unshelve.
+        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
+        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
+        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
+        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
     Qed.
 
 
