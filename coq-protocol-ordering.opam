@@ -23,7 +23,7 @@ depends: [
 ]
 
 tags: [
-  "logpath:AttestationProtocolOrdering"
+  "logpath:protocol-ordering"
 ]
 authors: [
   "Sarah Johnson"

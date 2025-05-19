@@ -1,9 +1,6 @@
 Require Import Coq.Lists.List.
 
 Require Import AttestationProtocolOrdering.attackgraph.
-Require Import AttestationProtocolOrdering.attackgraph_adversary.
-Require Import AttestationProtocolOrdering.attackgraph_ordering.
-Require Import AttestationProtocolOrdering.set_minimization.
 Require Import AttestationProtocolOrdering.set_ordering.
 
 

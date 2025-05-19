@@ -13,8 +13,3 @@ theories/attackgraph_adversary.v
 theories/attackgraph_ordering.v
 theories/set_ordering.v
 theories/set_relationship.v
-
-
-
-
-

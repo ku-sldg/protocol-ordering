@@ -22,7 +22,6 @@ which protocol is better.
 - License: [GNU GENERAL PUBLIC LICENSE VERSION 2](LICENSE)
 - Compatible Coq versions: 8.20 or later
 - Additional dependencies: none
-- Coq namespace: `AttestationProtocolOrdering`
 - Related publication(s): none
 
 ## Building and installation instructions
@@ -54,6 +53,5 @@ cannot be determined between them.
 * `attackgraph_normalization.v` : attack graph normalization procedure
 * `attackgraph_adversary.v` : sets of adversary events and time-constrained adversary events
 * `attackgraph_ordering.v` : equivalence and partial order relations over attack graphs
-* `set_minimization.v` : reduces set of attack graphs to its minimal (i.e., easiest) elements
 * `set_ordering.v` : equivalence and partial order relations over sets of attack graphs
 * `set_relationship.v` : ordering relationship options
