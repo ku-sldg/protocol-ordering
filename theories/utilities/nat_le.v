@@ -84,3 +84,19 @@ Lemma le_0_0 : forall x,
 Proof.
     intros x H; destruct x; [ auto | inversion H ].
 Qed.
+
+Lemma le_S_S : forall x' y,
+    le (S x') y ->
+    exists y', y = S y'.
+Proof.
+    intros x' y H; inversion H; eauto.
+Qed.
+
+
+Lemma nle_S_0 : forall x,
+    ~ le (S x) O.
+Proof.
+    intros x contra; inversion contra.
+Qed. 
+
+

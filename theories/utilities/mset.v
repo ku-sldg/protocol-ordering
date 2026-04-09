@@ -2,6 +2,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.Init.Peano.
 Require Import AttestationProtocolOrdering.utilities.nat_le.
 
+
 (********************************)
 
 
@@ -72,19 +73,6 @@ Proof.
        try (inversion H; fail); try contradiction; 
        apply IHM'; auto.
 Qed.
-
-Lemma multiplicity_succ : forall {A} eqDec_A a (M : list A),
-    In a M <->
-    le_fix 1 (multiplicity_fix eqDec_A a M).
-Proof.
-    intros A eqDec_A a M; split; intros H;
-    induction M as [|a' M']; simpl in *;
-    try (inversion H; fail);
-    destruct (eqDec_A a a') as [|contra]; subst; auto;
-    destruct H; [ symmetry in H; contradiction | apply IHM'; auto ].
-Qed.
-
-
 
 
 
@@ -183,7 +171,6 @@ Proof.
     destruct (eqDec_nat (multiplicity_fix eqDec_A a' M) (multiplicity_fix eqDec_A a' M)) as [|contra];
     auto; apply contra; auto.
 Qed.
-
 
 
 (** mSameset
@@ -287,6 +274,21 @@ Proof.
     --- pose proof (multiplicity_zero eqDec_A a M1) as HZero1;
         apply HZero1 in HIn1; rewrite HIn1; auto.
 Qed.
+
+
+Lemma mSameset_universe : forall {A} eqDec_A (M N : list A),
+    mSameset eqDec_A M N <->
+    (forall a', (multiplicity_fix eqDec_A a' M) = (multiplicity_fix eqDec_A a' N)).
+Proof.
+    unfold mSameset, mSamesetHelper; intros A eqDec_A M N; split; intros H; auto.
+    intros a'; destruct H as [HM HN]; specialize HM with a'; specialize HN with a'.
+    destruct (In_dec eqDec_A a' M) as [m|m'], (In_dec eqDec_A a' N) as [n|n']; 
+    auto; try (symmetry; auto).
+    apply (multiplicity_zero eqDec_A) in n'; rewrite n';
+    apply (multiplicity_zero eqDec_A) in m'; rewrite m';
+    auto.
+Qed.
+
 
 
 (** mIncludedHelper
@@ -475,6 +477,17 @@ Proof.
     split; intros a HIn; apply H in HIn; rewrite HIn; apply le_same; auto.
 Qed.
 
+Lemma mIncluded_universe : forall {A} eqDec_A (M N : list A),
+    mIncluded eqDec_A M N <->
+    (forall a', le_fix (multiplicity_fix eqDec_A a' M) (multiplicity_fix eqDec_A a' N)).
+Proof.
+    unfold mIncluded, mIncludedHelper; intros A eqDec_A M N; split; intros H; auto.
+    intros a'; specialize H with a';
+    destruct (In_dec eqDec_A a' M) as [m|m']; auto.
+    apply (multiplicity_zero eqDec_A) in m'; rewrite m'; simpl; auto.
+Qed.
+
+
 
 
 (** mStrictIncluded 
@@ -605,3 +618,12 @@ Proof.
     [|intros contra'; apply contra];
     eapply mIncluded_transitive; eauto.
 Qed.
+
+
+
+
+
+
+
+
+

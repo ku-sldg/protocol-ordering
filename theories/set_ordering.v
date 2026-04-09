@@ -14,6 +14,22 @@ Require Import AttestationProtocolOrdering.attackgraph_ordering.
 Section SetOrdering. 
     Context {components : Type}.
 
+(** Partial order over time-contraint tagged adversary event labels *)
+    Context {trianglelefteq : tauTaggedLabel components -> tauTaggedLabel components -> Prop}.
+    Context {trianglelefteqDec : forall l1 l2, {trianglelefteq l1 l2} + {~ trianglelefteq l1 l2}}.
+    Context {trianglelefteq_tau : forall l, trianglelefteq (blankTag _ l) (tauTag _ l)}.
+    Context {trianglelefteq_reflexive : forall l, trianglelefteq l l}.
+    Context {trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2}.
+    Context {trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3}.
+
+    Definition mySimeq (A B : attackgraph components) : Prop :=
+        simeq A B.
+    Definition myPreceq (A B : attackgraph components) : Prop :=
+        exists f, @preceq components trianglelefteq A B f.
+    Definition myPrec (A B : attackgraph components) : Prop :=
+        @prec components trianglelefteq A B.
+     
+
 (** equal
  **
  ** Sets of attack graphs P and Q are equal (i.e., P = Q)
@@ -87,10 +103,11 @@ Section SetOrdering.
  ** if and only if min(P) = min(Q). *)
 
     Definition equiv (P Q : list (attackgraph components)) : Prop := forall P' Q',
-        min_ind prec P P P' ->
-        min_ind prec Q Q Q' ->
+        min_ind myPrec P P P' ->
+        min_ind myPrec Q Q Q' ->
         equal P' Q'.
 
+    (* 
     Definition equiv_fix (P Q : list (attackgraph components)) : Prop :=
         equal_fix (min_fix prec_fix precDec P P) (min_fix prec_fix precDec Q Q).
 
@@ -113,7 +130,7 @@ Section SetOrdering.
         {equiv_fix P Q} + {~ equiv_fix P Q}.
     Proof.
         intros; apply equalDec.
-    Defined.
+    Defined. *)
 
     Theorem equiv_reflexive : forall P,
         equiv P P.
@@ -148,13 +165,13 @@ Section SetOrdering.
  ** if and only if P supports Q under the preceq relation. *)
 
     Definition leq (P Q : list (attackgraph components)) : Prop :=
-        supports preceq P Q.
+        supports myPreceq P Q.
 
-    Hint Unfold leq : core.
-
+    (* 
     Definition leq_fix (P Q : list (attackgraph components)) : Prop :=
         supports_fix preceq_fix preceqDec P Q.
 
+    Hint Unfold leq : core.
 
     Lemma leq_same : forall P Q,
         leq_fix P Q <->
@@ -170,7 +187,7 @@ Section SetOrdering.
         {leq_fix P Q} + {~ leq_fix P Q}.
     Proof.
         intros; apply supportsDec.
-    Defined.
+    Defined. *)
 
 
     Theorem leq_reflexive : forall P Q,

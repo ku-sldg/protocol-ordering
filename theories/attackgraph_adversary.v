@@ -27,6 +27,10 @@ Section AdversarySets.
 
     Hint Unfold pi : core.
 
+    (** Multiset of adversary event labels *)
+    Definition lPi (A : attackgraph components) :=
+    map (myLabel A) (pi A).
+
     Lemma pi_fact : forall A ev,
         In ev (pi A)
         <->
@@ -73,6 +77,10 @@ Section AdversarySets.
 
     Hint Unfold tau : core.
 
+    (** Multiset of time-constrained adversary event labels *)
+    Definition lTau (A : attackgraph components) :=
+    map (myLabel A) (tau A).
+
     Lemma tau_fact : forall A ev,
         In ev (tau A)
         <->
@@ -109,6 +117,7 @@ Section AdversarySets.
         - destruct HLab as [adv HLab];
           exists adv; auto.
     Qed.
+
 
 
 End AdversarySets.

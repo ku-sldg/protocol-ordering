@@ -1,9 +1,19 @@
 -Q theories AttestationProtocolOrdering
 -arg -w -arg -notation-overridden
 
-theories/utilities/list_removeFirst.v
 theories/utilities/nat_le.v
+
+theories/utilities/list_functions.v
+theories/utilities/list_facts.v
+
 theories/utilities/mset.v
+
+theories/utilities/partialfun.v
+
+theories/utilities/permute.v
+theories/utilities/tsort.v
+theories/utilities/map_po.v
+
 theories/utilities/supports.v
 theories/utilities/min.v
 
@@ -11,5 +21,5 @@ theories/attackgraph.v
 theories/attackgraph_normalization.v
 theories/attackgraph_adversary.v
 theories/attackgraph_ordering.v
-theories/set_ordering.v
-theories/set_relationship.v
+#theories/set_ordering.v
+#theories/set_relationship.v
