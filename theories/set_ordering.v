@@ -22,13 +22,24 @@ Section SetOrdering.
     Context {trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2}.
     Context {trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3}.
 
-    Definition mySimeq (A B : attackgraph components) : Prop :=
-        simeq A B.
-    Definition myPreceq (A B : attackgraph components) : Prop :=
-        exists f, @preceq components trianglelefteq A B f.
-    Definition myPrec (A B : attackgraph components) : Prop :=
-        @prec components trianglelefteq A B.
-     
+    Local Notation preceq := (@preceq components trianglelefteq).
+    Local Notation prec := (@prec components trianglelefteq).
+    Local Notation prec_fix := (@prec_fix components trianglelefteq trianglelefteqDec).
+
+    Local Notation preceqDec := (@preceqDec components trianglelefteq trianglelefteqDec).
+    Local Notation preceq_transitive := (@preceq_transitive components trianglelefteq trianglelefteq_transitive).
+    Local Notation preceq_reflexive := (@preceq_reflexive components trianglelefteq trianglelefteq_reflexive).
+    Local Notation preceq_antisymmetric := (@preceq_antisymmetric components trianglelefteq trianglelefteqDec
+        trianglelefteq_reflexive trianglelefteq_antisymmetric trianglelefteq_transitive).
+    Local Notation prec_same := (@prec_same components trianglelefteq trianglelefteqDec).
+    Local Notation precDec := (@precDec components trianglelefteq trianglelefteqDec).
+    Local Notation prec_irreflexive := (@prec_irreflexive components trianglelefteq).
+    Local Notation prec_asymmetric := (@prec_asymmetric components trianglelefteq trianglelefteqDec
+        trianglelefteq_reflexive trianglelefteq_antisymmetric trianglelefteq_transitive).
+    Local Notation prec_transitive := (@prec_transitive components trianglelefteq trianglelefteqDec
+        trianglelefteq_reflexive trianglelefteq_antisymmetric trianglelefteq_transitive).
+    Local Notation preceq_correct := (@preceq_correct components trianglelefteq trianglelefteq_reflexive).
+    Local Notation prec_simeq1 := (@prec_simeq1 components trianglelefteq trianglelefteq_reflexive trianglelefteq_transitive).
 
 (** equal
  **
@@ -103,11 +114,10 @@ Section SetOrdering.
  ** if and only if min(P) = min(Q). *)
 
     Definition equiv (P Q : list (attackgraph components)) : Prop := forall P' Q',
-        min_ind myPrec P P P' ->
-        min_ind myPrec Q Q Q' ->
+        min_ind prec P P P' ->
+        min_ind prec Q Q Q' ->
         equal P' Q'.
 
-    (* 
     Definition equiv_fix (P Q : list (attackgraph components)) : Prop :=
         equal_fix (min_fix prec_fix precDec P P) (min_fix prec_fix precDec Q Q).
 
@@ -119,8 +129,8 @@ Section SetOrdering.
     Proof.
         intros P Q; split; intros H.
         - intros P' Q' HMinP HMinQ;
-          apply equal_same; unfold equiv_fix in H;
-          eapply min_spo_same in HMinP, HMinQ; try apply prec_same;
+          apply equal_same; unfold equiv_fix in H.
+          eapply min_spo_same in HMinP, HMinQ; try apply prec_same.
           rewrite <- HMinP, <- HMinQ; eauto.
         - apply equal_same; apply H;
           eapply min_spo_same; try apply prec_same; eauto.
@@ -130,7 +140,7 @@ Section SetOrdering.
         {equiv_fix P Q} + {~ equiv_fix P Q}.
     Proof.
         intros; apply equalDec.
-    Defined. *)
+    Defined. 
 
     Theorem equiv_reflexive : forall P,
         equiv P P.
@@ -165,11 +175,10 @@ Section SetOrdering.
  ** if and only if P supports Q under the preceq relation. *)
 
     Definition leq (P Q : list (attackgraph components)) : Prop :=
-        supports myPreceq P Q.
+        supports preceq P Q.
 
-    (* 
     Definition leq_fix (P Q : list (attackgraph components)) : Prop :=
-        supports_fix preceq_fix preceqDec P Q.
+        supports_fix preceq preceqDec P Q.
 
     Hint Unfold leq : core.
 
@@ -177,17 +186,14 @@ Section SetOrdering.
         leq_fix P Q <->
         leq P Q.
     Proof.
-        intros P Q; split; intros HLeq; 
-        [ apply supports_same in HLeq | apply supports_same ]; 
-        intros B HIn; apply HLeq in HIn; destruct HIn as [A];
-        exists A; [ rewrite <- preceq_same | rewrite preceq_same ]; auto.
+        intros P Q; apply supports_same.
     Qed.
 
     Lemma leqDec : forall P Q,
         {leq_fix P Q} + {~ leq_fix P Q}.
     Proof.
         intros; apply supportsDec.
-    Defined. *)
+    Defined.
 
 
     Theorem leq_reflexive : forall P Q,
@@ -225,8 +231,10 @@ Section SetOrdering.
     Proof.
         intros P P' HMin B HIn;
         pose proof (min_spoeq prec prec_transitive P P P' HMin B HIn) as HPreceq;
-        destruct HPreceq as [G HPreceq]; destruct HPreceq;
-        exists G; split; auto; apply preceq_preceq; auto.
+        destruct HPreceq as [G HPreceq]; destruct HPreceq as [HIn' HP];
+        exists G; split; auto; destruct HP as [HP|HEq]; subst.
+        - destruct HP; auto.
+        - apply preceq_reflexive; apply simeq_reflexive.
     Qed.
 
     Lemma min_leq2 : forall P P',
@@ -260,6 +268,8 @@ Section SetOrdering.
         leq Q P ->
         equiv P Q.
     Proof.
+        assert (forall A B, {prec A B} + {~ prec A B}) as precDec'
+        by (intros A B; destruct (precDec A B) as [H|H]; rewrite prec_same in H; auto).
         intros P Q HLeqPQ HLeqQP. unfold equiv. intros P' Q' HMinP HMinQ.
         assert (leq P' Q') as HPQ by
         ( pose proof (min_leq1 P P' HMinP); pose proof (min_leq2 Q Q' HMinQ);
@@ -280,7 +290,7 @@ Section SetOrdering.
           assert (forall (A : attackgraph components), ~ prec A A) as prec_irreflexive
             by (intros; apply prec_irreflexive; apply simeq_reflexive);
           pose proof (min_minimal prec prec_irreflexive prec_asymmetric prec_transitive Q Q' HMinQ A' HIn) as HMin;
-          eapply minimal_same in HMin; apply minimal_same' in HMin;
+          apply (minimal_same prec precDec') in HMin; apply minimal_same' in HMin;
           unfold minimal, not in HMin;  
           eapply HMin; eauto; eapply min_in; eauto.
         - exists B'; auto.
@@ -292,15 +302,10 @@ Section SetOrdering.
           assert (forall (A : attackgraph components), ~ prec A A) as prec_irreflexive
             by (intros; apply prec_irreflexive; apply simeq_reflexive);
           pose proof (min_minimal prec prec_irreflexive prec_asymmetric prec_transitive P P' HMinP A' HIn) as HMin;
-          eapply minimal_same in HMin; apply minimal_same' in HMin;
+          apply (minimal_same prec precDec') in HMin; apply minimal_same' in HMin;
           unfold minimal, not in HMin;  
           eapply HMin; eauto; eapply min_in; eauto.
         - exists B'; auto.
-        Unshelve.
-        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
-        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
-        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
-        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
     Qed.
 
 

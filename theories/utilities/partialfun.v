@@ -9,7 +9,7 @@ Require Import AttestationProtocolOrdering.utilities.nat_le.
 Require Import AttestationProtocolOrdering.utilities.list_functions.
 Require Import AttestationProtocolOrdering.utilities.list_facts.
 Require Import AttestationProtocolOrdering.utilities.permute.
-
+Require Import AttestationProtocolOrdering.utilities.mset.
 
 
 
@@ -82,8 +82,8 @@ Require Import AttestationProtocolOrdering.utilities.permute.
 
 
     Lemma partialFunction_range : forall {X Y} (f : X -> Y) xs ys,
-            partialFunction f xs ys ->
-            incl (map f xs) ys.
+        partialFunction f xs ys ->
+        incl (map f xs) ys.
     Proof.
         unfold partialFunction; intros X Y f xs ys Hf y HIn.
         apply in_map_iff in HIn; destruct HIn as [x [HEq HIn]]; subst; auto.
@@ -120,6 +120,97 @@ Require Import AttestationProtocolOrdering.utilities.permute.
         --- exfalso; apply H4; rewrite HEq; apply in_map; auto.
         --- exfalso; apply H4; rewrite <-HEq; apply in_map; auto.
     Qed.
+    
+    (* Try proving other direction too, hopefully without inhabited *)
+    Lemma partialFunction_alist : forall {X Y} (eqDec_X : forall x1 x2 : X, {x1 = x2} + {x1 <> x2}) (eqDec_Y : forall y1 y2 : Y, {y1 = y2} + {y1 <> y2}) (xs : list X) (ys : list Y),
+        NoDup xs -> NoDup ys ->
+        (exists f' : list (X * Y), mSameset eqDec_X (map fst f') xs /\ mIncluded eqDec_Y (map snd f') ys) ->
+        inhabited Y ->
+        (exists f : X -> Y, partialFunction f xs ys /\ partialInjective f xs).
+    Proof.
+       intros X Y eqDec_X eqDec_Y xs ys HNd_X HNd_Y Hf' nmt_Y.
+       destruct Hf' as [f' [HS HI]].
+       pose proof (mIncluded_NoDup eqDec_Y _ _ HNd_Y HI) as HNd_snd. 
+       apply mIncluded_incl in HI.
+       pose proof (mSameset_symmetric eqDec_X _ _ HS) as HSS.
+       apply mIncluded_reflexive in HS, HSS.
+       pose proof (mIncluded_NoDup eqDec_X _ _ HNd_X HS) as HNd_fst.
+       apply mIncluded_incl in HS, HSS. 
+       generalize dependent xs. generalize dependent ys.
+       induction f' as [|[x' y'] f'']; intros.
+       - destruct nmt_Y as [yd]. exists (fun _ => yd). split.
+       -- intros x HIn. apply HSS in HIn. inversion HIn.
+       -- intros x1 x2 [HIn1 HIn2]. apply HSS in HIn1. inversion HIn1.
+       - simpl in HNd_fst; inversion HNd_fst; subst.
+         simpl in HNd_snd; inversion HNd_snd; subst.
+         pose proof (remove_NoDup eqDec_Y y' ys HNd_Y) as HNd_Y'.
+         assert (incl (map snd f'') (remove eqDec_Y y' ys)) as HI'
+         by (intros y HIn; apply in_in_remove; 
+            [intros contra; subst; contradiction 
+            |apply HI; simpl; auto]).
+         pose proof (remove_NoDup eqDec_X x' xs HNd_X) as HNd_X'.
+         assert (incl (map fst f'') (remove eqDec_X x' xs)) as HS'
+         by (intros x HIn; apply in_in_remove; 
+            [intros contra; subst; contradiction 
+            |apply HS; simpl; auto]).
+         assert (incl (remove eqDec_X x' xs) (map fst f'')) as HSS' 
+         by (intros x HIn; apply in_remove in HIn; destruct HIn as [HIn HNeq];
+             apply HSS in HIn; simpl in HIn; destruct HIn; subst; [contradiction | auto]).
+         pose proof (IHf'' H4 H2 _ HNd_Y' HI' _ HNd_X' HS' HSS') as IH.
+         destruct IH as [f [Hf HInj]].
+         exists (fun x => if eqDec_X x x'
+                          then y'
+                          else f x); split.
+        -- intros x HIn; destruct (eqDec_X x x') as [|HNeq]; subst.
+        --- apply HI; simpl; auto.
+        --- pose proof (in_in_remove eqDec_X xs HNeq HIn) as H;
+            apply Hf in H; apply in_remove in H; destruct H; auto.
+        -- intros x1 x2 [HIn1 HIn2] HEq.
+           destruct (eqDec_X x1 x') as [|HNeq1], (eqDec_X x2 x') as [|HNeq2]; subst; auto.
+        --- exfalso. 
+            pose proof (in_in_remove eqDec_X xs HNeq2 HIn2) as H; apply Hf in H. 
+            pose proof (remove_In eqDec_Y ys (f x2)); contradiction.
+        --- exfalso.
+            pose proof (in_in_remove eqDec_X xs HNeq1 HIn1) as H; apply Hf in H.
+            pose proof (remove_In eqDec_Y ys (f x1)); contradiction.
+        --- apply HInj; auto. split; apply in_in_remove; auto.
+    Qed.
+
+    Lemma alist_partialFunction : forall {X Y} (eqDec_X : forall x1 x2 : X, {x1 = x2} + {x1 <> x2}) (eqDec_Y : forall y1 y2 : Y, {y1 = y2} + {y1 <> y2}) (xs : list X) (ys : list Y),
+        NoDup xs -> NoDup ys ->
+        (exists f : X -> Y, partialFunction f xs ys /\ partialInjective f xs) ->
+        (exists f' : list (X * Y), mSameset eqDec_X (map fst f') xs /\ mIncluded eqDec_Y (map snd f') ys).
+    Proof.
+        intros X Y eqDec_X eqDec_Y xs ys HNd_X HNd_Y [f [Hf HInj]]. 
+        exists (combine xs (map f xs)); split.
+        - apply incl_NoDup_mSameset; auto.
+        -- clear Hf HInj. induction xs as [|x' xs']; simpl; auto.
+           inversion HNd_X; subst. constructor.
+        --- intros HIn; apply H1.
+            apply in_map_iff in HIn; destruct HIn as [[xa' y'] [HEq HIn]].
+            simpl in HEq; subst; eapply in_combine_l; eauto.
+        --- apply IHxs'; auto.
+        -- intros x HIn. apply in_map_iff in HIn; destruct HIn as [[xa y] [HEq HIn]].
+           simpl in HEq; subst; eapply in_combine_l; eauto.
+        -- intros x HIn; apply in_map_iff.
+           exists (x, f x); split; simpl; auto.
+           pose proof (length_map f xs) as HLen. clear HNd_X Hf HInj.
+           induction xs as [|x' xs']; [inversion HIn|].
+           destruct HIn; subst; simpl in *; auto.
+        - apply incl_NoDup_mIncluded.
+        -- apply partialInjective_carac in HInj; auto.
+           clear HNd_X Hf. induction xs as [|x' xs']; simpl; auto.
+           inversion HInj; subst. constructor.
+        --- intros HIn; apply H1.
+            apply in_map_iff in HIn; destruct HIn as [[xa' y'] [HEq HIn]].
+            simpl in HEq; subst. eapply in_combine_r; eauto.
+        --- apply IHxs'; auto.
+        -- intros y HIn; apply in_map_iff in HIn; destruct HIn as [[x ya] [HEq HIn]].
+           simpl in HEq; subst; apply partialFunction_range in Hf.
+           apply in_combine_r in HIn; apply Hf in HIn; auto.
+    Qed.
+
+    
 
     Lemma NoDup_injective_incl_length : forall {X Y} (f : X -> Y) xs ys,
         NoDup xs ->
@@ -246,13 +337,22 @@ Require Import AttestationProtocolOrdering.utilities.permute.
 
 
     
-        Lemma combineFunSigma_NoDup : forall {X Y} (eqDec_X : forall x1 x2 : X, {x1 = x2} + {x1 <> x2})
-                (xs : list X) (ys : list Y) (HLen : le (length xs) (length ys)),
-            NoDup ys ->
-            NoDup (map (fun x => proj1_sig (combineFunSigma eqDec_X xs ys HLen x)) (enumList xs)).
-        Proof.
-            intros X Y eqDec_X xs ys HLen.
-        Abort.
+    (* Lemma dkljv : forall {X Y} (xs : list X) (ys : list Y) (nmt_Y : inhabited Y),
+        NoDup ys ->
+        le (length xs) (length ys) ->
+        exists (f : X -> Y), partialFunction f xs ys /\ partialInjective f xs.
+    Proof.
+        intros X Y xs ys nmt_Y HNd_Y HLen.
+    Abort.
+
+
+    Lemma combineFunSigma_NoDup : forall {X Y} (eqDec_X : forall x1 x2 : X, {x1 = x2} + {x1 <> x2})
+            (xs : list X) (ys : list Y) (HLen : le (length xs) (length ys)),
+        NoDup ys ->
+        NoDup (map (fun x => proj1_sig (combineFunSigma eqDec_X xs ys HLen x)) (enumList xs)).
+    Proof.
+        intros X Y eqDec_X xs ys HLen.
+    Abort. *)
 
 
     Lemma combineFunSigma_injective : forall {X Y} (eqDec_X : forall x1 x2 : X, {x1 = x2} + {x1 <> x2})
@@ -362,12 +462,70 @@ Require Import AttestationProtocolOrdering.utilities.permute.
     Qed.
    
 
+    Lemma le_reflexive' : forall (x y : nat),
+        x = y ->
+        le x y.
+    Proof.
+        intros; subst; auto.
+    Qed.
 
-    Lemma dfkjDec : forall {X Y} (eqDec_X : forall x1 x2 : X, {x1=x2} + {x1<>x2}) (nmt_Y : inhabited Y)
+    Lemma vkcndDec : forall {X Y} (eqDec_X : forall x1 x2 : X, {x1=x2} + {x1<>x2}) (nmt_Y : inhabited Y)
             (xs : list X) (ys : list Y) (HNd_Y : NoDup ys) (HLen : le (length xs) (length ys)) (P : (X -> Y) -> Prop),
-        exists f, partialFunction f xs ys /\ partialInjective f xs /\ P f.
+        (forall f, {P f} + {~ P f}) ->
+        (forall f g, (forall x, In x xs -> f x = g x) -> P f -> P g) ->
+        {exists f, partialFunction f xs ys /\ partialInjective f xs /\ P f} + 
+        {forall p (HLenP : le (length xs) (length p)), 
+         In p (permutations ys) -> 
+         forall f, (forall sigx, proj1_sig (combineFunSigma eqDec_X xs p HLenP sigx) = f (proj1_sig sigx)) -> ~ P f}.
+    Proof.
+        intros X Y eqDec_X nmt_Y xs ys HNd_Y HLen P PDec PExt.
+        assert (forall p, In p (permutations ys) -> NoDup p) as HNd_P.
+        { intros; eapply permutations_NoDup; eauto. }
+        pose proof (permutations_length ys) as HLen_P.
+        induction (permutations ys) as [|p pys].
+        - right. intros p HLenP HIn. inversion HIn.
+        - destruct IHpys as [IHl|IHr]; intros; [ apply HNd_P | apply HLen_P | | ]; simpl; auto.
+        -- assert (NoDup p) as HNdP.
+           { apply HNd_P; simpl; auto. }
+           assert (le (length xs) (length p)) as HLenP.
+           { rewrite <- HLen_P; simpl; auto. }
+           pose proof (combineFunSigma_partialInjective eqDec_X nmt_Y xs p HNdP HLenP) as H.
+           (* destruct H as [f [Hf [HInj HEq]]]. *)
+    Admitted.
 
+
+
+    Lemma ckjvDec : forall {X Y} (eqDec_X : forall x1 x2 : X, {x1=x2} + {x1<>x2}) (nmt_Y : inhabited Y)
+            (xs : list X) (ys : list Y) (HNd_Y : NoDup ys) (HLen : le (length xs) (length ys)) (P : (X -> Y) -> Prop),
+        (forall f, {P f} + {~ P f}) ->
+        (forall f g, (forall x, In x xs -> f x = g x) -> P f -> P g) ->
+        {exists f, partialFunction f xs ys /\ partialInjective f xs /\ P f} + {forall f, partialFunction f xs ys -> partialInjective f xs -> ~ P f}.
+    Proof.
+        intros X Y eqDec_X nmt_Y xs ys HNd_Y HLen P PDec PExt.
+        pose proof (vkcndDec eqDec_X nmt_Y xs ys HNd_Y HLen P PDec PExt) as H. destruct H as [H|H].
+        - left; auto.
+        - right.
+    Admitted.
+
+    Lemma existsInjFunDec : forall {X Y} (eqDec_X : forall x1 x2 : X, {x1=x2} + {x1<>x2}) (nmt_Y : inhabited Y)
+            (xs : list X) (ys : list Y) (HNd_Y : NoDup ys) (HLen : le (length xs) (length ys)) (P : (X -> Y) -> Prop),
+        (forall f, {P f} + {~ P f}) ->
+        (forall f g, (forall x, In x xs -> f x = g x) -> P f -> P g) ->
+        {exists f, partialFunction f xs ys /\ partialInjective f xs /\ P f} + {~ exists f, partialFunction f xs ys /\ partialInjective f xs /\ P f}.
+    Proof.
+        intros X Y eqDec_X nmt_Y xs ys HNd_Y HLen P PDec PExt.
+        pose proof (ckjvDec eqDec_X nmt_Y xs ys HNd_Y HLen P PDec PExt) as H. destruct H as [H|H].
+        - left; auto.
+        - right. intros contra. destruct contra as [f [Hf [HInj HP]]]. unfold not in H; apply H with f; auto.
+    Abort.
     
+
+(*     Lemma alistDec : forall {X Y} (eqDec_X : forall x1 x2 : X, {x1=x2} + {x1<>x2})
+            (xs : list X) (ys : list Y) (P : (X -> Y) -> Prop),
+        (forall f, {P f} + {~ P f}) ->
+        (forall f g, (forall x, In x xs -> f x = g x) -> P f -> P g) -> *)
+
+
 
 
     Lemma partialInverse_symmetric : forall {X Y} (f : X -> Y) g xs ys,

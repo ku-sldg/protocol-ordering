@@ -344,7 +344,7 @@ Section MapPo.
         --- apply partialInjective_incl with (xs:=x'::xs'); simpl; auto.
              intros x HIn; simpl; auto.
         --- intros. apply HfEq; simpl; auto.
-        --- apply remove_nodup; auto.
+        --- apply remove_NoDup; auto.
         --- unfold partialSurjective in *.
              intros y HyIn. apply in_remove in HyIn. destruct HyIn as [HyIn HyNeq].
              apply HfSur in HyIn. destruct HyIn as [x [HxIn HxEq]].
@@ -363,7 +363,7 @@ Section MapPo.
         --- apply partialInjective_incl with (xs:=x'::xs'); simpl; auto.
              intros x HIn; simpl; auto.
         --- intros. apply HfEq; simpl; auto.
-        --- apply remove_nodup; auto.
+        --- apply remove_NoDup; auto.
         --- unfold partialSurjective in *.
              intros y HyIn. apply in_remove in HyIn. destruct HyIn as [HyIn HyNeq].
              apply HfSur in HyIn. destruct HyIn as [x [HxIn HxEq]].

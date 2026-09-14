@@ -99,4 +99,3 @@ Proof.
     intros x contra; inversion contra.
 Qed. 
 
-

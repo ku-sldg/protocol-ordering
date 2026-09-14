@@ -26,6 +26,13 @@ Qed.
 
 (** mset facts *)
 
+Lemma multiplicity_countOcc : forall {A} eqDec_A a (M : list A),
+    multiplicity_fix eqDec_A a M = count_occ eqDec_A M a.
+Proof.
+    intros A eqDec_A a M. induction M as [|a' M']; simpl; auto.
+    destruct (eqDec_A a a'), (eqDec_A a' a); subst; try contradiction; auto.
+Qed.
+
 
 Lemma multiplicity_succ : forall {A} eqDec_A a (M : list A),
     In a M <->
@@ -37,6 +44,22 @@ Proof.
     destruct (eqDec_A a a') as [|contra]; subst; auto;
     destruct H; [ symmetry in H; contradiction | apply IHM'; auto ].
 Qed.
+
+Lemma multiplicity_NoDup_one : forall {A} eqDec_A a (M : list A),
+    NoDup M ->
+    In a M ->
+    (multiplicity_fix eqDec_A a M) = 1.
+Proof.
+    intros A eqDec_A a M HNd HIn.
+    induction M as [|a' M']; simpl;
+    try (inversion HIn; fail).
+    inversion HNd; subst;
+    destruct (eqDec_A a a'); subst;
+    destruct HIn; subst; try contradiction.
+    -- apply multiplicity_zero with (eqDec_A:=eqDec_A) in H1;
+       rewrite H1; auto.
+    -- apply IHM'; auto.
+Qed.  
 
 Lemma multiplicity_app : forall {A} eqDec_A a (M1 M2 : list A),
     multiplicity_fix eqDec_A a (M1 ++ M2) =  multiplicity_fix eqDec_A a M1 + multiplicity_fix eqDec_A a M2.
@@ -63,6 +86,36 @@ Proof.
     destruct (eqDec_A a a'); subst;
     rewrite multiplicity_app_comm; auto.
 Qed.
+
+Lemma multiplicity_removeFirst : forall {A} eqDec_A a (M : list A),
+    In a M ->
+    multiplicity_fix eqDec_A a M = S (multiplicity_fix eqDec_A a (removeFirst_fix eqDec_A a M)).
+Proof.
+    intros A eqDec_A a M HIn. induction M as [|a' M'].
+    - inversion HIn.
+    - simpl; destruct (eqDec_A a a'), (eqDec_A a' a); subst; try contradiction; auto.
+      simpl; destruct (eqDec_A a a'); subst; try contradiction.
+      destruct HIn; subst; try contradiction.
+      rewrite IHM'; auto.
+Qed.
+
+Lemma multiplicity_removeFirst_neq : forall {A} eqDec_A a (M : list A),
+    forall b, a <> b ->
+    multiplicity_fix eqDec_A a M = multiplicity_fix eqDec_A a (removeFirst_fix eqDec_A b M).
+Proof.
+    intros A eqDec_A a M; induction M as [|a' M']; intros; simpl; auto.
+    destruct (eqDec_A a' b); simpl; destruct (eqDec_A a a'); subst; auto.
+    contradiction.
+Qed.
+
+Lemma multiplicity_zero_all : forall {A} eqDec_A (M : list A),
+    (forall a, multiplicity_fix eqDec_A a M = 0) ->
+    M = nil.
+Proof.
+    intros A eqDec_A M H; induction M as [|a' M']; auto.
+    specialize H with a'; simpl in H; destruct (eqDec_A a' a'); try contradiction; inversion H.
+Qed.
+
 
 Lemma multiplicity_remove_neq : forall {A} eqDec_A a (M : list A),
     forall b, a <> b ->
@@ -139,6 +192,57 @@ Proof.
       rewrite multiplicity_app_comm; auto.
 Qed.
 
+Lemma mIncluded_NoDup : forall {A} eqDec_A (M N : list A),
+    NoDup N ->
+    mIncluded eqDec_A M N ->
+    NoDup M.
+Proof.
+    intros A eqDec_A M N HNd H. rewrite mIncluded_universe in H.
+    induction M as [|a M'].
+    - constructor.
+    - constructor.
+    -- intros contra.
+       specialize H with a. simpl in H. destruct (eqDec_A a a); try contradiction.
+       apply multiplicity_succ with (eqDec_A:=eqDec_A) in contra.
+       assert (le_fix 1 (multiplicity_fix eqDec_A a N)) as HIn
+       by (rewrite le_same in *; eapply le_transitive; eauto; eapply le_transitive with (y:=S (multiplicity_fix eqDec_A a M')); auto).
+       apply multiplicity_succ in HIn.
+       pose proof (multiplicity_NoDup_one eqDec_A a N HNd HIn) as HEq. rewrite HEq in H.
+       rewrite le_same in contra. apply le_S_S in contra. destruct contra as [m contra]. rewrite contra in H.
+       simpl in H. inversion H.
+    -- apply IHM'. intros a'. specialize H with a'. simpl in H.
+       destruct (eqDec_A a' a); subst; auto.
+       rewrite le_same in *; apply le_transitive with (y := S (multiplicity_fix eqDec_A a M')); auto.
+Qed.
+
+Lemma incl_NoDup_mIncluded : forall {A} eqDec_A (M N : list A),
+    NoDup M ->
+    incl M N ->
+    mIncluded eqDec_A M N.
+Proof.
+    intros A eqDec_A M N HNd HIncl.
+    unfold mIncluded. unfold mIncludedHelper. unfold incl in HIncl.
+    destruct M as [|a M']; intros a' HIn; simpl;
+    try (inversion HIn; fail).
+    inversion HNd; subst;
+    destruct (eqDec_A a' a); subst;
+    destruct HIn; subst; try contradiction.
+    - apply multiplicity_zero with (eqDec_A:=eqDec_A) in H1; rewrite H1.
+      apply multiplicity_succ; apply HIncl; simpl; auto.
+    - rewrite multiplicity_NoDup_one; auto.
+      apply multiplicity_succ; apply HIncl; simpl; auto.
+Qed.
+
+Lemma incl_NoDup_mSameset : forall {A} eqDec_A (M N : list A),
+    NoDup M -> NoDup N ->
+    incl M N -> incl N M ->
+    mSameset eqDec_A M N.
+Proof.
+    intros A eqDec_A M N HNd_M HNd_N HIncl_MN HIncl_NM.
+    apply mIncluded_antisymmetric; apply incl_NoDup_mIncluded; auto.
+Qed.
+
+
 Lemma mSameset_length : forall {A} eqDec_A (M N : list A),
     mSameset eqDec_A M N ->
     length M = length N.
@@ -181,6 +285,39 @@ Proof.
        destruct (eqDec_A a' a); subst;
        rewrite multiplicity_app_comm; auto.
 Qed.
+
+Lemma mIncluded_cons_removeFirst : forall {A} eqDec_A (M N : list A) a,
+    mIncluded eqDec_A (a :: M) N ->
+    mIncluded eqDec_A M (removeFirst_fix eqDec_A a N).
+Proof.
+    intros A eqDec_A M N a H.
+    rewrite mIncluded_universe; rewrite mIncluded_universe in H.
+    intros a'; specialize H with a'.
+    simpl in *; destruct (eqDec_A a' a); subst.
+    - assert (In a N) as HIn
+      by (eapply multiplicity_succ; rewrite le_same; 
+          apply le_transitive with (y := S (multiplicity_fix eqDec_A a M)); 
+          rewrite <- le_same; [simpl; auto|eauto]).
+      rewrite multiplicity_removeFirst with (M:=N) in H; auto.
+    - rewrite <- multiplicity_removeFirst_neq; auto.
+Qed.
+
+Lemma mSameset_cons_removeFirst : forall {A} eqDec_A (M N : list A) a,
+    mSameset eqDec_A (a :: M) N ->
+    mSameset eqDec_A M (removeFirst_fix eqDec_A a N).
+Proof.
+    intros A eqDec_A M N a H.
+    rewrite mSameset_universe; rewrite mSameset_universe in H.
+    intros a'; specialize H with a'.
+    simpl in *; destruct (eqDec_A a' a); subst.
+    - assert (In a N) as HIn by (eapply multiplicity_succ; rewrite <- H; simpl; auto).
+      rewrite multiplicity_removeFirst with (M:=N) in H; auto.
+    - rewrite <- multiplicity_removeFirst_neq; auto.
+Qed.
+
+
+
+
 
 Lemma mStrictIncluded_in : forall {A} eqDec_A (M N : list A) a,
     mIncluded eqDec_A M N ->
@@ -436,7 +573,28 @@ Qed.
 
 
 
- 
+(**
+ ** nodup
+ ** snd
+ *)
+
+Lemma NoDup_map_snd : forall {X Y : Type} (l : list (X * Y)) (x1 x2 : X) (y : Y),
+    NoDup (map snd l) ->
+    In (x1, y) l ->
+    In (x2, y) l ->
+    x1 = x2.
+Proof.
+    intros X Y l. induction l as [|[x' y'] l']; intros x1 x2 y HNd HIn1 HIn2;
+    simpl in *; [inversion HIn1|].
+    inversion HNd; subst.
+    destruct HIn1 as [HIn1|HIn1], HIn2 as [HIn2|HIn2]; subst.
+    - inversion HIn1; inversion HIn2; subst; auto.
+    - exfalso; inversion HIn1; subst;
+      apply H1; apply in_map_iff; exists (x2,y); auto.
+    - exfalso; inversion HIn2; subst;
+      apply H1; apply in_map_iff; exists (x1,y); auto.
+    - eapply IHl'; eauto.
+Qed.
 
 
 (**
@@ -473,7 +631,7 @@ Proof.
 Qed.
 
 
-Lemma remove_nodup : forall {X : Type} eqDec_X (x : X) l,
+Lemma remove_NoDup : forall {X : Type} eqDec_X (x : X) l,
     NoDup l ->
     NoDup (remove eqDec_X x l).
 Proof.
