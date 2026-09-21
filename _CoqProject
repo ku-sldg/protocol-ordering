@@ -14,12 +14,15 @@ theories/utilities/permute.v
 theories/utilities/tsort.v
 theories/utilities/map_po.v
 
+theories/utilities/reach.v
+
 theories/utilities/supports.v
 theories/utilities/min.v
 
 theories/attackgraph.v
 theories/attackgraph_normalization.v
 theories/attackgraph_adversary.v
+theories/adversary_ordering.v
 theories/attackgraph_ordering.v
 theories/set_ordering.v
 theories/set_relationship.v

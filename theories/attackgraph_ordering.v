@@ -12,11 +12,12 @@ Require Import AttestationProtocolOrdering.utilities.permute.
 
 Require Import AttestationProtocolOrdering.attackgraph.
 Require Import AttestationProtocolOrdering.attackgraph_adversary.
+Require Import AttestationProtocolOrdering.adversary_ordering.
 
 
 Section AttackGraphOrdering. 
     Context {components : Type}.
-    
+ (*   
 (** Time-contraint tagged adversary event label *)
     Inductive tauTaggedLabel (component : Type) : Type :=
     | tauTag : advLabel component -> tauTaggedLabel component
@@ -105,7 +106,7 @@ Section AttackGraphOrdering.
     | Some ev' => myLabelTagged ev'
     | None => None
     end.
-
+*)
 (** Partial order over time-contraint tagged adversary event labels *)
     Context {trianglelefteq : tauTaggedLabel components -> tauTaggedLabel components -> Prop}.
     Context {trianglelefteqDec : forall l1 l2, {trianglelefteq l1 l2} + {~ trianglelefteq l1 l2}}.
@@ -113,7 +114,7 @@ Section AttackGraphOrdering.
     Context {trianglelefteq_reflexive : forall l, trianglelefteq l l}.
     Context {trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2}.
     Context {trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3}.
-    
+(*    
     Definition trianglelefteq_option (l1 l2 : option (tauTaggedLabel components)) : Prop :=
     match l1, l2 with
     | Some l1', Some l2' => trianglelefteq l1' l2'
@@ -153,7 +154,7 @@ Section AttackGraphOrdering.
         intros; try contradiction.
     Qed.
 
-
+*)
 
 (** simeq (Equivalence) *)
 
@@ -198,7 +199,8 @@ Section AttackGraphOrdering.
 
 
 
-
+Local Notation trianglelefteq_option := (@trianglelefteq_option components trianglelefteq).
+(*Local Notation trianglelefteqOptionDec := (@trianglelefteq_option components trianglelefteq trianglelefteqDec).*)
 
 
 
@@ -241,7 +243,7 @@ Section AttackGraphOrdering.
 
 
 
-   
+   (*
 
     Lemma trianglelefteq_Forall : forall (A B : attackgraph components) (f : list (eventT A * eventT B)),
         (forall ev, trianglelefteq_option (myLabelTagged ev) (myLabelTagged_option (find (myEqDec_event A) f ev))) <->
@@ -254,6 +256,7 @@ Section AttackGraphOrdering.
         -- unfold trianglelefteq_option; apply myLabelTagged_none in HNIn;
            rewrite HNIn; auto.
     Qed.
+    *)
 
     Lemma preceqDec : forall A B, 
         {preceq A B} + {~ preceq A B}.
@@ -277,7 +280,7 @@ Section AttackGraphOrdering.
           pose (tagP := (fun (m : list (eventT A * eventT B)) =>
                     Forall (fun ev => trianglelefteq_option (myLabelTagged ev) (myLabelTagged_option (find (myEqDec_event A) m ev))) (pi A))).
           assert (forall m, {tagP m} + {~ tagP m}) as tagPDec.
-          { intros m; unfold tagP; apply Forall_dec; intros ev; apply trianglelefteqOptionDec. }
+          { intros m; unfold tagP; apply Forall_dec; intros ev; apply (@trianglelefteqOptionDec _ _ trianglelefteqDec). }
           destruct (Exists_dec tagP (getAllInjections (pi A) (pi B)) tagPDec) as [HEx|HNEx].
         -- left. apply Exists_exists in HEx; destruct HEx as [f [HIn HTag]].
            exists f; unfold preceq; split; [|split].
@@ -459,7 +462,7 @@ Section AttackGraphOrdering.
         exists (fun e => g (f e)); repeat split.
         - intros e HeIn; auto.
         - intros e1 e2 [HIn1 HIn2]; auto.
-        - intros e. eapply trianglelefteqOption_transitive; eauto.
+        - intros e. eapply (@trianglelefteqOption_transitive _ _ trianglelefteq_transitive); eauto.
     Qed.
 
     Theorem preceq_transitive : forall A B C,
@@ -561,10 +564,10 @@ Section AttackGraphOrdering.
         simeq A B.
     Proof.
         intros A B [f [HfIn [HfInj HfTri]]] [g [HgIn [HgInj HgTri]]].
-        pose proof trianglelefteqOptionDec as trianglelefteqOptionDec.
-        pose proof trianglelefteqOption_reflexive as trianglelefteqOption_reflexive.
-        pose proof trianglelefteqOption_antisymmetric as trianglelefteqOption_antisymmetric.
-        pose proof trianglelefteqOption_transitive as trianglelefteqOption_transitive.
+        pose proof (@trianglelefteqOptionDec _ _ trianglelefteqDec) as trianglelefteqOptionDec.
+        pose proof (@trianglelefteqOption_reflexive _ _ trianglelefteq_reflexive) as trianglelefteqOption_reflexive.
+        pose proof (@trianglelefteqOption_antisymmetric _ _ trianglelefteq_antisymmetric) as trianglelefteqOption_antisymmetric.
+        pose proof (@trianglelefteqOption_transitive _ _ trianglelefteq_transitive) as trianglelefteqOption_transitive.
         pose proof eqDec_event as eqDec_event.
         assert (NoDup (pi A)) as HaNd by apply NoDup_nodup.
         assert (NoDup (pi B)) as HbNd by apply NoDup_nodup.
