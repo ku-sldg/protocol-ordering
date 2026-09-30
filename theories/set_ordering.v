@@ -211,7 +211,7 @@ Section SetOrdering.
         destruct H as [A' H]; destruct H as [HIn' H];
         apply HPQ in HIn'; destruct HIn' as [A HIn']; destruct HIn';
         exists A; split;
-        [ eapply min_in; eauto | ];
+        [ eapply min_incl; eauto | ];
         apply preceq_correct; destruct H; 
         [ left; rewrite prec_same in H; eapply prec_simeq1 
         | right; subst ]; eauto.
@@ -224,7 +224,6 @@ Section SetOrdering.
     Proof.
         intros P Q R HST HTU; eapply supports_transitive; eauto; apply preceq_transitive.
     Qed.
-
 
     Lemma min_leq1 : forall P P',
         min_ind prec P P P' ->
@@ -243,7 +242,7 @@ Section SetOrdering.
         leq P P'.
     Proof.
         intros P P' HMin B HIn; exists B; split;
-        [ eapply min_in; eauto | apply preceq_reflexive; apply simeq_reflexive ].
+        [ eapply min_incl; eauto | apply preceq_reflexive; apply simeq_reflexive ].
     Qed.
 
     Lemma leq_min1 : forall P Q P',
@@ -261,7 +260,7 @@ Section SetOrdering.
         min_ind prec Q Q Q' ->
         leq P Q'.
     Proof.
-        intros P Q Q' HLeq HMin B HIn; apply HLeq; eapply min_in; eauto.
+        intros P Q Q' HLeq HMin B HIn; apply HLeq; eapply min_incl; eauto.
     Qed.
 
     Theorem leq_antisymmetric : forall P Q,
@@ -293,7 +292,7 @@ Section SetOrdering.
           pose proof (min_minimal prec prec_irreflexive prec_asymmetric prec_transitive Q Q' HMinQ A' HIn) as HMin;
           apply (minimal_same prec precDec') in HMin; apply minimal_same' in HMin;
           unfold minimal, not in HMin;  
-          eapply HMin; eauto; eapply min_in; eauto.
+          eapply HMin; eauto; eapply min_incl; eauto.
         - exists B'; auto.
         - exfalso; 
           apply HPQ in HIn'; destruct HIn' as [A HIn']; destruct HIn' as [HIn' HOrd];
@@ -305,9 +304,25 @@ Section SetOrdering.
           pose proof (min_minimal prec prec_irreflexive prec_asymmetric prec_transitive P P' HMinP A' HIn) as HMin;
           apply (minimal_same prec precDec') in HMin; apply minimal_same' in HMin;
           unfold minimal, not in HMin;  
-          eapply HMin; eauto; eapply min_in; eauto.
+          eapply HMin; eauto; eapply min_incl; eauto.
         - exists B'; auto.
     Qed.
 
+    Theorem leq_min : forall P Q P' Q',
+        min_ind prec P P P' ->
+        min_ind prec Q Q Q' ->
+        leq P Q <->
+        leq P' Q'.
+    Proof.
+        intros P Q P' Q' HP HQ; split; intros HLeq.
+        - pose proof (min_leq1 P P' HP);
+          pose proof (min_leq2 Q Q' HQ);
+          eapply leq_transitive; eauto;
+          eapply leq_transitive; eauto.
+        - pose proof (min_leq2 P P' HP);
+          pose proof (min_leq1 Q Q' HQ);
+          eapply leq_transitive; eauto;
+          eapply leq_transitive; eauto.
+    Qed.          
 
 End SetOrdering. 
