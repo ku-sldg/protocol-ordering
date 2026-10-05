@@ -26,3 +26,5 @@ theories/adversary_ordering.v
 theories/attackgraph_ordering.v
 theories/set_ordering.v
 theories/set_relationship.v
+theories/trace_ordering.v
+theories/trace_relationship.v
