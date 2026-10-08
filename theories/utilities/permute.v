@@ -14,22 +14,15 @@ match l with
 | nil => [[a]]
 end.
 
-Eval compute in (insert 1 [2;3;4]). (* [[1; 2; 3; 4]; [2; 1; 3; 4]; [2; 3; 1; 4]; [2; 3; 4; 1]] *)
-Eval compute in (insert 1 [2;4;3]). (* [[1; 2; 4; 3]; [2; 1; 4; 3]; [2; 4; 1; 3]; [2; 4; 3; 1]] *)
-
 Fixpoint permutations {X : Type} (l : list X) : list (list X) :=
 match l with
 | x :: l' => flat_map (insert x) (permutations l')
 | nil => [[]]
 end.
 
-Eval compute in (permutations (1::2::3::nil)).
-Eval compute in (permutations (1::2::3::5::nil)).
-
 Definition getAllInjections {X Y : Type} (xs : list X) (ys : list Y) :=
     map (combine xs) (permutations ys).
 
-Eval compute in (getAllInjections (0::1::2::nil) (6::7::8::9::nil)).
 
 
 
@@ -443,9 +436,6 @@ Proof.
     - apply Permutation_mSameset with (eqDec_X:=prod_eqDec eqDec_X eqDec_Y);
       apply Permutation_sym; auto.
 Qed.
-
-
-Eval compute in (flat_map permutations (getAllInjections (0::1::nil) (6::7::8::nil))).
 
 
 Lemma getAllInjections_msetMap : forall {X Y : Type} (eqDec_X : forall x1 x2 : X, {x1 = x2} + {x1 <> x2}) (eqDec_Y : forall y1 y2 : Y, {y1 = y2} + {y1 <> y2})
