@@ -20,8 +20,9 @@ which protocol is better.
   - Anna Fritz
   - Perry Alexander
 - License: [GNU GENERAL PUBLIC LICENSE VERSION 2](LICENSE)
-- Compatible Coq versions: 8.20 or later
+- Compatible Rocq/Coq versions: 8.20 or later
 - Additional dependencies: none
+- Rocq/Coq namespace: `AttestationProtocolOrdering`
 - Related publication(s): none
 
 ## Building and installation instructions
@@ -36,22 +37,69 @@ make install
 ```
 
 ## Documentation
-To order two attestation protocols, first generate all possible attacks. Attacks should be in an abstract form: 
-directed graph where nodes are either measurement events or adversarial corruption/repair events and 
-edges are chronological time. We recommend using the Chase model finder to enumerate all possible 
-attacks on an attestation protocol specified in the Copland domain-specific language. For examples using 
-Chase with the AttestationProtocolOrdering library, please see the ProtocolOrderingExamples repository at 
-git@github.com:ku-sldg/protocol-ordering-examples.git. 
+An attestation protocol is judged by the attacks an adversary can mount against it. This library
+represents each attack as an *attack graph*: a directed graph whose nodes are measurement events
+(`msp C1 C2`, component `C1` measures `C2`) or adversary events (`cor C` / `rep C`, corruption or
+repair of component `C`), and whose edges record chronological order. A protocol is then given by
+its set of attack graphs, and two protocols are compared by comparing those sets.
 
-The function `order_fix` decidably determines the ordering relationship between two attestation protocols 
-specified by their sets of attacks returning either `equiv` if they are equally difficult to attack, `leq` if the
-first protocol is easier to attack, `geq` if the first protocol is harder to attack, or `incomparable` if an ordering
-cannot be determined between them. 
+Attack graphs must be generated outside this library. We recommend using the Chase model finder to
+enumerate all possible attacks on an attestation protocol specified in the Copland domain-specific
+language. For examples using Chase with this library, see the [protocol-ordering-examples](https://github.com/ku-sldg/protocol-ordering-examples) repository.
+
+The comparison is built up in layers:
+
+1. **Adversary labels.** Each adversary event is tagged as *time-constrained* (`tauTag`) if it must
+   happen within a window bounded by measurements, or as unconstrained (`blankTag`) otherwise. 
+   You supply a partial order $\trianglelefteq$ (`trianglelefteq`) on these tagged labels that says which adversary
+   actions are easier for the adversary. It must be decidable, reflexive, antisymmetric and transitive, 
+   and must satisfy `blankTag l` $\trianglelefteq$ `tauTag l`.
+2. **Attack graphs.** $A \preceq B$ (`preceq`) holds when there is an injection from the adversary events of
+   $A$ into those of $B$ that maps each label to a label at least as hard under $\trianglelefteq$. $A \simeq B$ (`simeq`) 
+   holds when $A$ and $B$ have the same multiset of time-constraint tagged adversary event labels.
+3. **Sets of attack graphs.** $P \leq Q$ (`leq`) holds when every attack in $Q$ has an attack in $P$ that
+   is no harder, so $P$ is at least as easy to attack. $P \equiv Q$ (`equiv`) holds when the minimal
+   attacks of $P$ and $Q$ coincide.
+4. **Protocols.** `order_fix` decides the relationship between two protocols, given their sets of
+   attack graphs. It returns one of:
+   * `equiv`: the protocols are equally difficult to attack
+   * `leq`: the first protocol is easier to attack
+   * `geq`: the first protocol is harder to attack
+   * `incomparable`: neither is easier to attack than the other
+   
+   A protocol with parallel measurements can produce several measurement traces, each with its
+   own set of attack graphs. `torder_fix.v` handles this case, with a protocol represented as a
+   set of sets of attacks, where each set of attacks corresponds with one possible measurement trace.
+   * If the adversary is *schedule-controlling*, it picks the trace as well as the attack. Concatenate the
+     traces and use `order_fix` as above.
+   * If the adversary is *clairvoyant* (knows the trace but does not choose it), use `torder_fix`.
+     It returns the same verdicts as `order_fix`, paired with a flag (`tstar`) that is `true` when the
+     verdict holds no matter the likelihood of each trace. On single-trace protocols it agrees with `order_fix`.
+
+Every relation has a propositional definition and a computable version (`*_fix`), and the two are proved
+equivalent (`*_same` lemmas). Decision procedures (`*Dec`) are proved correct.
 
 ## File Contents
-* `attackgraph.v` : attack graph data structure definition
-* `attackgraph_normalization.v` : attack graph normalization procedure
-* `attackgraph_adversary.v` : sets of adversary events and time-constrained adversary events
-* `attackgraph_ordering.v` : equivalence and partial order relations over attack graphs
-* `set_ordering.v` : equivalence and partial order relations over sets of attack graphs
-* `set_relationship.v` : ordering relationship options
+
+### Core (`theories/`)
+* `attackgraph.v`: attack graph data structure and measurement/adversary event labels
+* `attackgraph_normalization.v`: attack graph normalization procedure
+* `attackgraph_adversary.v`: sets of adversary events (`pi`) and time-constrained adversary events (`tau`)
+* `adversary_ordering.v`: partial order (`trianglelefteq`) over time-constraint tagged adversary labels
+* `attackgraph_ordering.v`: equivalence (`simeq`) and partial orders (`preceq`, `prec`) over attack graphs
+* `set_ordering.v`: equivalence (`equiv`) and partial order (`leq`) over sets of attack graphs
+* `set_relationship.v`: the `orderT` verdicts and the `order_fix` decision procedure
+* `trace_ordering.v`: equivalence (`tequiv`), partial order (`tleq`), and likelihood independence (`tstar`) over sets of sets of attack graphs
+* `trace_relationship.v`: the `torder_fix` decision procedure for multi-trace protocols
+
+### Utilities (`theories/utilities/`)
+* `nat_le.v`: decidable equality and ordering on natural numbers
+* `list_functions.v`, `list_facts.v`: computable list predicates and supporting lemmas
+* `mset.v`: multisets as lists (multiplicity, equality, inclusion)
+* `partialfun.v`: partial functions and injections as association lists
+* `permute.v`: permutations and enumeration of injections between lists
+* `tsort.v`: topological sorting under a preorder
+* `map_po.v`: label-preserving maps between partially ordered sets
+* `reach.v`: decidable reachability in a directed graph given by a finite edge list
+* `supports.v`: the `supports` lifting of a relation to sets, with its decision procedure
+* `min.v`: minimal elements of a set under a strict partial order
