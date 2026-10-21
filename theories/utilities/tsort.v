@@ -77,20 +77,6 @@ Section TSort.
         intros; apply filter_same.
     Qed.
 
-    (* Lemma getMaximals_incl : forall XS XS' xs,
-        incl XS' XS ->
-        incl (getMaximals_fix XS xs) (getMaximals_fix XS' xs).
-    Proof.
-        intros XS XS' xs HIncl mx HIn.
-        induction xs as [|x' xs'].
-        - inversion HIn.
-        - unfold getMaximals_fix in *. simpl in *.
-          destruct (maximalDec XS x').
-        -- eapply forallP_incl in m; eauto.
-           destruct (maximalDec XS' x'); try contradiction.
-           destruct HIn; subst; simpl; auto.
-        -- destruct (maximalDec XS' x'); simpl; auto.
-    Qed. *)
 
     Lemma getMaximals_maximal : forall xs mx,
         In mx (getMaximals_fix xs xs) ->
