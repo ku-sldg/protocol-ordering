@@ -41,15 +41,15 @@ Section TraceRelationship.
  ** order_fix for the clairvoyant adversary, over lists of traces. The
  ** boolean is tstar: true when the verdict holds no matter how likely
  ** each trace is. For equiv it needs tstar in both directions, which
- ** holds only when every trace of P and Q is equivalent to the same
+ ** holds only when every trace of M and N is equivalent to the same
  ** set of attack graphs. incomparable is never starred. *)
 
-    Definition torder_fix (P Q : list (list (attackgraph components))) : orderT * bool :=
-    if (tequivDec P Q) then (equiv, if (tstarDec P Q)
-                                    then if (tstarDec Q P) then true else false
+    Definition torder_fix (M N : list (list (attackgraph components))) : orderT * bool :=
+    if (tequivDec M N) then (equiv, if (tstarDec M N)
+                                    then if (tstarDec N M) then true else false
                                     else false) else
-    if (tleqDec P Q)   then (leq, if (tstarDec P Q) then true else false) else
-    if (tleqDec Q P)   then (geq, if (tstarDec Q P) then true else false) else
+    if (tleqDec M N)   then (leq, if (tstarDec M N) then true else false) else
+    if (tleqDec N M)   then (geq, if (tstarDec N M) then true else false) else
                             (incomparable, false).
 
     (* On protocols with one trace each, torder_fix agrees with order_fix. *)
@@ -66,6 +66,66 @@ Section TraceRelationship.
         destruct (tleqDec (Q::nil) (P::nil)) as [HTQP|HTQP], (leqDec Q P) as [HQP|HQP];
         rewrite tleq_same, tleq_single in HTQP; rewrite leq_same in HQP;
         try contradiction; auto.
+    Qed.
+
+(** Introduce orderT * bool from tleq and tstar *)
+    
+    Local Notation tleq := (@tleq components trianglelefteq).
+    Local Notation tstar := (@tstar components trianglelefteq).
+    Local Notation tstar_same := (@tstar_same components trianglelefteq trianglelefteqDec).
+
+    Lemma torder_equiv_intro : forall M N b1 b2,
+        tleq M N -> 
+        tleq N M ->
+        (b1 = true -> tstar M N) -> (b1 = false -> ~ tstar M N) ->
+        (b2 = true -> tstar N M) -> (b2 = false -> ~ tstar N M) ->
+        torder_fix M N = (equiv, andb b1 b2).
+    Proof.
+        intros M N b1 b2 HMN HNM H1T H1F H2T H2F; unfold torder_fix.
+        destruct (tequivDec M N) as [|HN]; [|exfalso; apply HN; apply tequiv_same; split; auto].
+        destruct (tstarDec M N) as [H1|H1], (tstarDec N M) as [H2|H2];
+        rewrite tstar_same in H1, H2; destruct b1, b2; simpl; auto; exfalso;
+        try apply (H1F eq_refl H1); 
+        try apply (H2F eq_refl H2);
+        try (apply H1; apply H1T; reflexivity);
+        try (apply H2; apply H2T; reflexivity).
+    Qed.
+
+    Lemma torder_leq_intro : forall M N b,
+        tleq M N -> 
+        ~ tleq N M ->
+        (b = true -> tstar M N) -> (b = false -> ~ tstar M N) ->
+        torder_fix M N = (leq, b).
+    Proof.
+        intros M N b HMN HNM HT HF; unfold torder_fix.
+        destruct (tequivDec M N) as [HE|]; [rewrite tequiv_same in HE; destruct HE; contradiction|].
+        destruct (tleqDec M N) as [|HN]; [|exfalso; apply HN; apply tleq_same; auto].
+        rewrite (tstar_bool M N b HT HF); reflexivity.
+    Qed.
+
+    Lemma torder_geq_intro : forall M N b,
+        ~ tleq M N -> 
+        tleq N M ->
+        (b = true -> tstar N M) -> (b = false -> ~ tstar N M) ->
+        torder_fix M N = (geq, b).
+    Proof.
+        intros M N b HMN HNM HT HF; unfold torder_fix.
+        destruct (tequivDec M N) as [HE|]; [rewrite tequiv_same in HE; destruct HE; contradiction|].
+        destruct (tleqDec M N) as [HL|]; [rewrite tleq_same in HL; contradiction|].
+        destruct (tleqDec N M) as [|HN]; [|exfalso; apply HN; apply tleq_same; auto].
+        rewrite (tstar_bool N M b HT HF); reflexivity.
+    Qed.
+
+    Lemma torder_incomparable_intro : forall M N,
+        ~ tleq M N -> 
+        ~ tleq N M ->
+        torder_fix M N = (incomparable, false).
+    Proof.
+        intros M N HMN HNM; unfold torder_fix.
+        destruct (tequivDec M N) as [HE|]; [rewrite tequiv_same in HE; destruct HE; contradiction|].
+        destruct (tleqDec M N) as [HL|]; [rewrite tleq_same in HL; contradiction|].
+        destruct (tleqDec N M) as [HL|]; [rewrite tleq_same in HL; contradiction|].
+        reflexivity.
     Qed.
 
 End TraceRelationship.

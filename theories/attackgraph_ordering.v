@@ -1,6 +1,7 @@
 
 Require Import Coq.Lists.List.
 Require Import Coq.Init.Datatypes.
+Require Import Lia.
 
 Require Import AttestationProtocolOrdering.utilities.nat_le.
 Require Import AttestationProtocolOrdering.utilities.list_functions.
@@ -25,6 +26,8 @@ Section AttackGraphOrdering.
     Context {trianglelefteq_reflexive : forall l, trianglelefteq l l}.
     Context {trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2}.
     Context {trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3}.
+
+    Local Notation trianglelefteqOptionDec := (@trianglelefteqOptionDec components trianglelefteq trianglelefteqDec).
 
 
 (** simeq (Equivalence) *)
@@ -63,6 +66,7 @@ Section AttackGraphOrdering.
     Lemma simeq_transitive : forall A B C,
         simeq A B ->
         simeq B C ->
+
         simeq A C.
     Proof.
         intros A B C H H'; eapply mSameset_transitive; eapply mSameset_eqDec; eauto.
@@ -84,6 +88,14 @@ Local Notation trianglelefteq_option := (@trianglelefteq_option components trian
     
     Definition preceq (A B : attackgraph components) : Prop :=
         exists f, preceqHelper A B f.
+
+    (** Fixpoint Definition (Helper only) *)
+    Definition preceqHelper_fix (A B : attackgraph components) (f : list (eventT A * eventT B)) : Prop :=
+        if mSamesetDec (myEqDec_event A) (map fst f) (pi A)
+        then if mIncludedDec (myEqDec_event B) (map snd f) (pi B)
+             then forallP_fix (fun ev => trianglelefteqOptionDec (myLabelTagged ev) (myLabelTagged_option (find (myEqDec_event A) f ev))) (pi A)
+             else False
+        else False.
    
     (** Mathematical Definition - Function *)
     Definition preceqHelper_fun (A B : attackgraph components) (f : eventT A -> eventT B) : Prop :=
@@ -109,6 +121,8 @@ Local Notation trianglelefteq_option := (@trianglelefteq_option components trian
     Definition preceq_ind (A B : attackgraph components) :=
         preceqHelper_ind (pi A) (pi B).
 
+
+
     Lemma preceqDec : forall A B, 
         {preceq A B} + {~ preceq A B}.
     Proof.
@@ -131,7 +145,7 @@ Local Notation trianglelefteq_option := (@trianglelefteq_option components trian
           pose (tagP := (fun (m : list (eventT A * eventT B)) =>
                     Forall (fun ev => trianglelefteq_option (myLabelTagged ev) (myLabelTagged_option (find (myEqDec_event A) m ev))) (pi A))).
           assert (forall m, {tagP m} + {~ tagP m}) as tagPDec.
-          { intros m; unfold tagP; apply Forall_dec; intros ev; apply (@trianglelefteqOptionDec _ _ trianglelefteqDec). }
+          { intros m; unfold tagP; apply Forall_dec; intros ev; apply trianglelefteqOptionDec. }
           destruct (Exists_dec tagP (getAllInjections (pi A) (pi B)) tagPDec) as [HEx|HNEx].
         -- left. apply Exists_exists in HEx; destruct HEx as [f [HIn HTag]].
            exists f; unfold preceq; split; [|split].
@@ -152,6 +166,34 @@ Local Notation trianglelefteq_option := (@trianglelefteq_option components trian
           pose proof (mIncluded_length (myEqDec_event B) _ _ HI) as HI'; rewrite length_map in HI'.
           rewrite HS' in HI'; apply le_same; auto.
     Defined.
+
+    Lemma preceqHelperDec : forall A B f,
+        {preceqHelper_fix A B f} + {~ preceqHelper_fix A B f}.
+    Proof.
+        intros A B f; unfold preceqHelper_fix.
+        destruct (mSamesetDec (myEqDec_event A) (map fst f) (pi A)); [|right; auto];
+        destruct (mIncludedDec (myEqDec_event B) (map snd f) (pi B)); [|right; auto];
+        destruct (forallPDec _ _ (fun ev : myEvent A => trianglelefteqOptionDec (myLabelTagged ev) (myLabelTagged_option (find (myEqDec_event A) f ev))) (pi A));
+        [left|right]; rewrite forallP_same'; auto.
+    Defined.
+
+    Lemma preceqHelper_same : forall A B f,
+        preceqHelper_fix A B f <->
+        preceqHelper A B f.
+    Proof.
+        intros A B f; unfold preceqHelper_fix, preceqHelper; split; intros H.
+        - destruct (mSamesetDec (myEqDec_event A) (map fst f) (pi A)) as [HS|]; [|contradiction].
+          destruct (mIncludedDec (myEqDec_event B) (map snd f) (pi B)) as [HI|]; [|contradiction].
+          apply forallP_same' in H; apply mSameset_same' in HS; apply mIncluded_same' in HI.
+          split; [|split]; auto.
+          apply trianglelefteq_Forall; apply Forall_forall; auto.
+        - destruct H as [HS [HI H]]; apply mSameset_same' in HS; apply mIncluded_same' in HI.
+          destruct (mSamesetDec (myEqDec_event A) (map fst f) (pi A)); [|contradiction].
+          destruct (mIncludedDec (myEqDec_event B) (map snd f) (pi B)); [|contradiction].
+          apply forallP_same'; intros ev HIn.
+          apply trianglelefteq_Forall in H; rewrite Forall_forall in H; apply H; auto.
+    Qed.
+
     
     Lemma preceq_def_to_fun : forall A B,
         inhabited (eventT B) ->
@@ -415,7 +457,7 @@ Local Notation trianglelefteq_option := (@trianglelefteq_option components trian
         simeq A B.
     Proof.
         intros A B [f [HfIn [HfInj HfTri]]] [g [HgIn [HgInj HgTri]]].
-        pose proof (@trianglelefteqOptionDec _ _ trianglelefteqDec) as trianglelefteqOptionDec.
+        pose proof (trianglelefteqOptionDec) as trianglelefteqOptionDec.
         pose proof (@trianglelefteqOption_reflexive _ _ trianglelefteq_reflexive) as trianglelefteqOption_reflexive.
         pose proof (@trianglelefteqOption_antisymmetric _ _ trianglelefteq_antisymmetric) as trianglelefteqOption_antisymmetric.
         pose proof (@trianglelefteqOption_transitive _ _ trianglelefteq_transitive) as trianglelefteqOption_transitive.
@@ -536,6 +578,51 @@ Local Notation trianglelefteq_option := (@trianglelefteq_option components trian
         - intros HS'; apply HNS; eapply simeq_transitive; [apply simeq_symmetric|]; eauto.
     Qed.
 
+
+(** Preceq Hall Violator *)
+
+    Definition notPreceqDomain_fix (A : attackgraph components) (h : list (eventT A)) : list (eventT A) :=
+        filter_fix (fun a => in_dec (myEqDec_event A) a h) (pi A).
+
+    Definition notPreceqRange_fix (A B : attackgraph components) (h : list (eventT A)) : list (eventT B) :=
+        filter_fix (fun b => existsPDec (fun a => trianglelefteqOptionDec (myLabelTagged a) (myLabelTagged b))
+                                        (notPreceqDomain_fix A h)) (pi B).
+
+    Definition notPreceq_fix (A B : attackgraph components) (h : list (eventT A)) : Prop :=
+        le_fix (1 + length (notPreceqRange_fix A B h)) (length (notPreceqDomain_fix A h)).
+
+    Lemma notPreceqDec : forall A B h,
+        {notPreceq_fix A B h} + {~ notPreceq_fix A B h}.
+    Proof.
+        intros; apply leDec.
+    Defined.
+
+    Lemma notPreceq_sound : forall A B h,
+        notPreceq_fix A B h ->
+        ~ preceq A B.
+    Proof.
+        intros A B h H H'.
+        unfold notPreceq_fix in H; apply le_same in H.
+
+        assert (exists a0, In a0 (notPreceqDomain_fix A h)) as [a0 Ha0]
+        by (destruct (notPreceqDomain_fix A h) as [|a0 l]; [simpl in H; inversion H | exists a0; simpl; auto]).
+        assert (forall a, In a (notPreceqDomain_fix A h) -> In a (pi A)) as HhPi 
+        by apply filter_origin.
+        assert (inhabited (eventT B)) as Hnmt_B.
+        { destruct H' as [f [_ [_ HTag]]]; specialize (HTag a0).
+          destruct (find (myEqDec_event A) f a0) as [b0|]; eauto.
+          pose proof (HhPi a0 Ha0) as HPi; apply myLabelTagged_some in HPi; destruct HPi as [l Hl].
+          rewrite Hl in HTag; simpl in HTag; contradiction. }
+        apply (preceq_def_to_fun A B Hnmt_B) in H'; destruct H' as [g [Hf [HInj HTag]]].
+        assert (NoDup (map g (notPreceqDomain_fix A h))) as HNd.
+        { apply NoDup_map_NoDup_ForallPairs.
+          - intros x y Hx Hy; apply HInj; split; apply HhPi; auto.
+          - apply filter_NoDup; unfold pi; apply NoDup_nodup. }
+        assert (incl (map g (notPreceqDomain_fix A h)) (notPreceqRange_fix A B h)) as HIncl.
+        { intros b Hb; apply in_map_iff in Hb; destruct Hb as [a [HEq Ha]]; subst.
+          apply P_filter; auto. exists a; split; auto. }        
+        pose proof (NoDup_incl_length _ _ HNd HIncl) as HLen; rewrite length_map in HLen; lia.
+    Qed.
 
 End AttackGraphOrdering.
 

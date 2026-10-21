@@ -32,4 +32,66 @@ Section ProtocolOrdering.
     if (leqDec Q P)   then geq else
                            incomparable.
 
+(** Introduce orderT from leq *)
+
+    Local Notation set_leq := (@set_ordering.leq components trianglelefteq).
+    Local Notation set_equiv := (@set_ordering.equiv components trianglelefteq).
+    Local Notation equiv_same := (@equiv_same components trianglelefteq trianglelefteqDec).
+    Local Notation leq_same := (@leq_same components trianglelefteq trianglelefteqDec).
+    Local Notation equiv_symmetric := (@equiv_symmetric components trianglelefteq trianglelefteqDec).
+    Local Notation leq_reflexive := (@leq_reflexive components trianglelefteq trianglelefteqDec
+        trianglelefteq_reflexive trianglelefteq_antisymmetric trianglelefteq_transitive).
+    Local Notation leq_antisymmetric := (@leq_antisymmetric components trianglelefteq trianglelefteqDec
+        trianglelefteq_reflexive trianglelefteq_antisymmetric trianglelefteq_transitive).
+    Local Notation equiv_leq := (@equiv_leq components trianglelefteq trianglelefteqDec
+        trianglelefteq_reflexive trianglelefteq_antisymmetric trianglelefteq_transitive).
+
+    Lemma order_equiv_intro : forall P Q,
+        set_leq P Q -> 
+        set_leq Q P -> 
+        order_fix P Q = equiv.
+    Proof.
+        intros P Q HPQ HQP; unfold order_fix.
+        destruct (equivDec P Q) as [|HN]; auto.
+        exfalso; apply HN; apply equiv_same; apply leq_antisymmetric; auto.
+    Qed.
+
+    Lemma order_leq_intro : forall P Q,
+        set_leq P Q -> 
+        ~ set_leq Q P -> 
+        order_fix P Q = leq.
+    Proof.
+        intros P Q HPQ HQP; unfold order_fix.
+        destruct (equivDec P Q) as [HE|].
+        - exfalso; apply HQP; apply equiv_same in HE; apply equiv_leq in HE; destruct HE; auto.
+        - destruct (leqDec P Q) as [|HN]; auto.
+          exfalso; apply HN; apply leq_same; auto.
+    Qed.
+
+    Lemma order_geq_intro : forall P Q,
+        ~ set_leq P Q -> 
+        set_leq Q P -> 
+        order_fix P Q = geq.
+    Proof.
+        intros P Q HPQ HQP; unfold order_fix.
+        destruct (equivDec P Q) as [HE|].
+        - exfalso; apply HPQ; apply equiv_same in HE; apply equiv_leq in HE; destruct HE; auto.
+        - destruct (leqDec P Q) as [HL|]; [exfalso; apply HPQ; apply leq_same; auto|].
+          destruct (leqDec Q P) as [|HN]; auto.
+          exfalso; apply HN; apply leq_same; auto.
+    Qed.
+
+    Lemma order_incomparable_intro : forall P Q,
+        ~ set_leq P Q -> 
+        ~ set_leq Q P -> 
+        order_fix P Q = incomparable.
+    Proof.
+        intros P Q HPQ HQP; unfold order_fix.
+        destruct (equivDec P Q) as [HE|].
+        - exfalso; apply HPQ; apply equiv_same in HE; apply equiv_leq in HE; destruct HE; auto.
+        - destruct (leqDec P Q) as [HL|]; [exfalso; apply HPQ; apply leq_same; auto|].
+          destruct (leqDec Q P) as [HL|]; [exfalso; apply HQP; apply leq_same; auto|].
+          reflexivity.
+    Qed.
+
 End ProtocolOrdering.

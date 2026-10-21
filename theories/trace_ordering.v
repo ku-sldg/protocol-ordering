@@ -212,6 +212,16 @@ Section TraceOrdering.
           right; rewrite forallP_same'; auto.
     Defined.
 
+    Lemma tstar_bool : forall M N (b : bool),
+        (b = true -> tstar M N) ->
+        (b = false -> ~ tstar M N) ->
+        (if tstarDec M N then true else false) = b.
+    Proof.
+        intros M N b HT HF; destruct (tstarDec M N) as [HS|HS]; 
+        rewrite tstar_same in HS; destruct b; auto.
+        exfalso; apply HF; auto.
+    Qed.
+
     Lemma tstar_tleq : forall M N,
         tstar M N ->
         tleq M N.
@@ -285,5 +295,66 @@ Section TraceOrdering.
         apply HLeq in HInB; destruct HInB as [A [HInA HPreceq]].
         exists A; split; auto; apply in_concat; exists P; auto. 
     Qed.
+
+
+(** Introduce tleq and tstar from leq
+ **
+ ** Ms and Ns are the literal lists that M and N evaluates to.
+ ** Prove M = Ms and N = Ns by computation. *)
+
+    Lemma tleq_intro : forall M Ms N Ns,
+        M = Ms ->
+        N = Ns ->
+        Forall (fun Q => exists P, In P Ms /\ leq P Q) Ns ->
+        Forall (fun P => exists Q, In Q Ns /\ leq P Q) Ms ->
+        tleq M N.
+    Proof.
+        intros M Ms N Ns HM HN HMN HNM; subst; rewrite Forall_forall in HMN, HNM;
+        split; intros X HIn; [apply HMN | apply HNM]; auto.
+    Qed.
+
+    Lemma not_tleq_intro1 : forall M Ms N Q,
+        In Q N ->
+        M = Ms ->
+        Forall (fun P => ~ leq P Q) Ms ->
+        ~ tleq M N.
+    Proof.
+        intros M Ms N Q HQ HM HAll [HMN _]; subst; destruct (HMN Q HQ) as [P [HP HLeq]].
+        rewrite Forall_forall in HAll; apply (HAll P HP HLeq).
+    Qed.
+
+    Lemma not_tleq_intro2 : forall M N Ns P,
+        In P M ->
+        N = Ns ->
+        Forall (fun Q => ~ leq P Q) Ns ->
+        ~ tleq M N.
+    Proof.
+        intros M N Ns P HP HN HAll [_ HNM]; subst; destruct (HNM P HP) as [Q [HQ HLeq]].
+        rewrite Forall_forall in HAll; apply (HAll Q HQ HLeq).
+    Qed.
+
+    Lemma tstar_intro : forall M Ms N Ns,
+        M = Ms ->
+        N = Ns ->
+        Ms <> nil ->
+        Ns <> nil ->
+        Forall (fun P => Forall (fun Q => leq P Q) Ns) Ms ->
+        tstar M N.
+    Proof.
+        intros M Ms N Ns HM HN HMs HNs HAll; subst; split;
+        [split; intros contra; contradiction|].
+        intros P Q HP HQ; rewrite Forall_forall in HAll; specialize (HAll P HP).
+        rewrite Forall_forall in HAll; apply HAll; auto.
+    Qed.
+
+    Lemma not_tstar_intro : forall M N P Q,
+        In P M ->
+        In Q N ->
+        ~ leq P Q ->
+        ~ tstar M N.
+    Proof.
+        intros M N P Q HP HQ HN [_ HStar]; apply HN; apply HStar; auto.
+    Qed.
+
 
 End TraceOrdering. 

@@ -131,7 +131,7 @@ Proof.
     --- right. intros contra. destruct contra as [x' [HIn HP]].
         apply IH. exists x'; split; simpl; auto.
         destruct HIn; subst; try contradiction; auto.
-Qed.
+Defined.
       
 
 

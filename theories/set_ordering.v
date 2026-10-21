@@ -305,6 +305,13 @@ Section SetOrdering.
         - exists B'; auto.
     Qed.
 
+    Lemma equiv_leq : forall P Q,
+        equiv P Q ->
+        leq P Q /\ leq Q P.
+    Proof.
+        intros P Q H; split; apply leq_reflexive; [|apply equiv_symmetric]; auto.
+    Qed.
+
     Theorem leq_min : forall P Q P' Q',
         min_ind prec P P P' ->
         min_ind prec Q Q Q' ->
@@ -321,5 +328,44 @@ Section SetOrdering.
           eapply leq_transitive; eauto;
           eapply leq_transitive; eauto.
     Qed.          
+
+(** Introduce leq from preceq
+ **
+ ** Ps and Qs are the literal lists that P and Q evaluates to.
+ ** Prove P = Ps and Q = Qs by computation.
+ ** Stating the Forall over Ps and Qs then splits into one preceq goal
+ ** per attack graph, each provable separately. 
+ ** Prove the leq_intro goals with preceqHelper_same, and
+ ** prove the not_leq_intro goals with notPreceq_sound. *)
+
+    Lemma leq_intro : forall P Q Qs,
+        Q = Qs ->
+        Forall (fun B => exists A, In A P /\ preceq A B) Qs ->
+        leq P Q.
+    Proof.
+        intros P Q Qs HEq HAll B HIn; subst; rewrite Forall_forall in HAll; apply HAll; auto.
+    Qed.
+
+    Lemma not_leq_intro : forall P Ps Q B,
+        In B Q ->
+        P = Ps ->
+        Forall (fun A => ~ preceq A B) Ps ->
+        ~ leq P Q.
+    Proof.
+        intros P Ps Q B HB HEq HAll HLeq; subst; destruct (HLeq B HB) as [A [HA HPrec]].
+        rewrite Forall_forall in HAll; apply (HAll A HA HPrec).
+    Qed.
+
+
+    Ltac in_at n :=
+        apply (nth_error_In _ n); reflexivity.
+
+    Ltac by_map dec A n B f :=
+        hnf; exists A; split;
+        [ in_at n
+        | exists f; apply (preceqHelper_same (trianglelefteqDec := dec)); vm_compute; exact I ].
+
+    Ltac by_hall dec A B S :=
+        apply (notPreceq_sound (trianglelefteqDec := dec) A B S); vm_compute; exact I.
 
 End SetOrdering. 
