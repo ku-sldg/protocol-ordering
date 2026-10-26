@@ -13,12 +13,12 @@ Section SetOrdering.
     Context {components : Type}.
 
 (** Partial order over time-contraint tagged adversary event labels *)
-    Context {trianglelefteq : tauTaggedLabel components -> tauTaggedLabel components -> Prop}.
-    Context {trianglelefteqDec : forall l1 l2, {trianglelefteq l1 l2} + {~ trianglelefteq l1 l2}}.
-    Context {trianglelefteq_tau : forall l, trianglelefteq (blankTag _ l) (tauTag _ l)}.
-    Context {trianglelefteq_reflexive : forall l, trianglelefteq l l}.
-    Context {trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2}.
-    Context {trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3}.
+    Context (trianglelefteq : tauTaggedLabel components -> tauTaggedLabel components -> Prop).
+    Context (trianglelefteqDec : forall l1 l2, {trianglelefteq l1 l2} + {~ trianglelefteq l1 l2}).
+    Context (trianglelefteq_tau : forall l, trianglelefteq (blankTag _ l) (tauTag _ l)).
+    Context (trianglelefteq_reflexive : forall l, trianglelefteq l l).
+    Context (trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2).
+    Context (trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3).
 
     Local Notation preceq := (@preceq components trianglelefteq).
     Local Notation prec := (@prec components trianglelefteq).
@@ -357,15 +357,15 @@ Section SetOrdering.
     Qed.
 
 
-    Ltac in_at n :=
-        apply (nth_error_In _ n); reflexivity.
-
-    Ltac by_map dec A n B f :=
-        hnf; exists A; split;
-        [ in_at n
-        | exists f; apply (preceqHelper_same (trianglelefteqDec := dec)); vm_compute; exact I ].
-
-    Ltac by_hall dec A B S :=
-        apply (notPreceq_sound (trianglelefteqDec := dec) A B S); vm_compute; exact I.
-
 End SetOrdering. 
+
+Ltac in_at n :=
+    apply (nth_error_In _ n); reflexivity.
+
+Ltac by_map dec A n f :=
+    hnf; exists A; split;
+    [ in_at n
+    | exists f; apply (preceqHelper_same _ dec); vm_compute; exact I ].
+
+Ltac by_hall dec A B S :=
+    apply (notPreceq_sound _ dec A B S); vm_compute; exact I.

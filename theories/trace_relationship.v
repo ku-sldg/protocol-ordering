@@ -11,12 +11,12 @@ Require Import AttestationProtocolOrdering.trace_ordering.
 Section TraceRelationship.
     Context {components : Type}.
 
-    Context {trianglelefteq : tauTaggedLabel components -> tauTaggedLabel components -> Prop}.
-    Context {trianglelefteqDec : forall l1 l2, {trianglelefteq l1 l2} + {~ trianglelefteq l1 l2}}.
-    Context {trianglelefteq_tau : forall l, trianglelefteq (blankTag _ l) (tauTag _ l)}.
-    Context {trianglelefteq_reflexive : forall l, trianglelefteq l l}.
-    Context {trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2}.
-    Context {trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3}.
+    Context (trianglelefteq : tauTaggedLabel components -> tauTaggedLabel components -> Prop).
+    Context (trianglelefteqDec : forall l1 l2, {trianglelefteq l1 l2} + {~ trianglelefteq l1 l2}).
+    Context (trianglelefteq_tau : forall l, trianglelefteq (blankTag _ l) (tauTag _ l)).
+    Context (trianglelefteq_reflexive : forall l, trianglelefteq l l).
+    Context (trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2).
+    Context (trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3).
 
     Local Notation equivDec := (@equivDec components trianglelefteq trianglelefteqDec).
     Local Notation leqDec := (@leqDec components trianglelefteq trianglelefteqDec).
@@ -73,6 +73,7 @@ Section TraceRelationship.
     Local Notation tleq := (@tleq components trianglelefteq).
     Local Notation tstar := (@tstar components trianglelefteq).
     Local Notation tstar_same := (@tstar_same components trianglelefteq trianglelefteqDec).
+    Local Notation tstar_bool := (@tstar_bool components trianglelefteq trianglelefteqDec).
 
     Lemma torder_equiv_intro : forall M N b1 b2,
         tleq M N -> 

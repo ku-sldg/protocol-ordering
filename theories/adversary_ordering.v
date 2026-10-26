@@ -105,12 +105,12 @@ Section AdversaryOrdering.
     end.
 
 (** Partial order over time-contraint tagged adversary event labels *)
-    Context {trianglelefteq : tauTaggedLabel components -> tauTaggedLabel components -> Prop}.
-    Context {trianglelefteqDec : forall l1 l2, {trianglelefteq l1 l2} + {~ trianglelefteq l1 l2}}.
-    Context {trianglelefteq_tau : forall l, trianglelefteq (blankTag _ l) (tauTag _ l)}.
-    Context {trianglelefteq_reflexive : forall l, trianglelefteq l l}.
-    Context {trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2}.
-    Context {trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3}.
+    Context (trianglelefteq : tauTaggedLabel components -> tauTaggedLabel components -> Prop).
+    Context (trianglelefteqDec : forall l1 l2, {trianglelefteq l1 l2} + {~ trianglelefteq l1 l2}).
+    Context (trianglelefteq_tau : forall l, trianglelefteq (blankTag _ l) (tauTag _ l)).
+    Context (trianglelefteq_reflexive : forall l, trianglelefteq l l).
+    Context (trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2).
+    Context (trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3).
     
     Definition trianglelefteq_option (l1 l2 : option (tauTaggedLabel components)) : Prop :=
     match l1, l2 with
