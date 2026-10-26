@@ -23,6 +23,7 @@ theories/attackgraph.v
 theories/attackgraph_normalization.v
 theories/attackgraph_adversary.v
 theories/adversary_ordering.v
+theories/make_adversary_ordering.v
 theories/attackgraph_ordering.v
 theories/set_ordering.v
 theories/set_relationship.v
