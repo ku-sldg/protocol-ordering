@@ -1,4 +1,5 @@
 Require Import Coq.Lists.List.
+Require Import AttestationProtocolOrdering.utilities.list_functions.
 Require Import AttestationProtocolOrdering.utilities.reach.
 Require Import AttestationProtocolOrdering.attackgraph.
 Require Import AttestationProtocolOrdering.adversary_ordering.
@@ -164,6 +165,85 @@ Section MakeAdversaryOrdering.
                     as [H|H].
         - left; apply reachStar_makeTrianglelefteq; auto.
         - right; intro HTri; apply H; apply makeTrianglelefteq_reachStar; auto.
+    Defined.
+
+
+
+    Lemma makeTrianglelefteq_cases : forall t1 t2,
+        makeTrianglelefteq t1 t2 ->
+        t1 = t2 \/
+        (exists l, t1 = blankTag _ l /\ t2 = tauTag _ l) \/
+        (exists t1' t2', In (t1', t2') advOrder /\
+                         t1' <> t2' /\
+                         makeTrianglelefteq t1 t1' /\
+                         makeTrianglelefteq t2' t2).
+    Proof.
+        intros t1 t2 H; induction H; auto.
+        - right; left; eexists; eauto.
+        - destruct (eqDec_ttl t1 t2) as [HEq|HNeq]; [left; auto|].
+          right; right; eexists; eexists; repeat split; eauto; constructor.
+        - destruct IHmakeTrianglelefteq1 as [HEq | [[l1 [HEq1 HEq2]] | [t1' [t2' [HIn [HNeq [H1' H2']]]]]]]; subst; auto.
+        -- destruct IHmakeTrianglelefteq2 as [HEq | [[l2 [HEq1 HEq2]] | [t1' [t2' [HIn [HNeq [H1' H2']]]]]]]; subst.
+        --- right; left; eexists; eauto.
+        --- inversion HEq1.
+        --- right; right; eexists; eexists; repeat split; eauto.
+            eapply makeTrianglelefteq_transitive; eauto.
+        -- right; right; eexists; eexists; repeat split; eauto.
+           eapply makeTrianglelefteq_transitive; eauto.
+    Qed.
+
+    Definition makeTrianglelefteq_antisymmetric_pair
+        (tp : tauTaggedLabel components * tauTaggedLabel components) : Prop :=
+    fst tp <> snd tp -> 
+    ~ makeTrianglelefteq (snd tp) (fst tp).
+
+    Definition makeTrianglelefteqAntisymmetricPairDec
+            (tp : tauTaggedLabel components * tauTaggedLabel components) :
+        {makeTrianglelefteq_antisymmetric_pair tp} + {~ makeTrianglelefteq_antisymmetric_pair tp}.
+    Proof.
+        unfold makeTrianglelefteq_antisymmetric_pair.
+        destruct tp as [t1 t2]; simpl.
+        destruct (eqDec_ttl t1 t2) as [|].
+        - left; intros HNeq; contradiction.
+        - destruct (makeTrianglelefteqDec t2 t1) as [|]; auto.
+    Defined.
+
+    Definition makeTrianglelefteq_antisymmetric_fix : Prop :=
+        forallP_fix makeTrianglelefteqAntisymmetricPairDec advOrder.
+
+    Lemma makeTrianglelefteq_antisymmetric_same :
+        makeTrianglelefteq_antisymmetric_fix <->
+        (forall t1 t2,
+         makeTrianglelefteq t1 t2 ->
+         makeTrianglelefteq t2 t1 ->
+         t1 = t2).
+    Proof.
+        unfold makeTrianglelefteq_antisymmetric_fix; rewrite forallP_same'; split.
+        - intros HAll t1 t2 H12 H21.
+          destruct (eqDec_ttl t1 t2) as [|HNeq]; auto; exfalso.
+          destruct (makeTrianglelefteq_cases _ _ H12) as [HEq | [[l1 [HEq1 HEq2]]|[t1' [t2' [HIn [HNeq' [H1' H2']]]]]]]; subst.
+        -- contradiction.
+        -- destruct (makeTrianglelefteq_cases _ _ H21) as [HEq | [[l2 [HEq1 HEq2]]|[t1' [t2' [HIn [HNeq' [H2' H1']]]]]]]; subst.
+        --- inversion HEq.
+        --- inversion HEq1.
+        --- apply (HAll (t1', t2') HIn HNeq'); simpl;
+            eapply makeTrianglelefteq_transitive; [apply H1'|];
+            eapply makeTrianglelefteq_transitive; [apply makeTrianglelefteq_tau | apply H2'].
+        -- apply (HAll (t1', t2') HIn HNeq'); simpl;
+           eapply makeTrianglelefteq_transitive; [apply H2'|];
+           eapply makeTrianglelefteq_transitive; [apply H21 | apply H1'].
+        - intros H [t1' t2'] HIn HNeq H21; simpl in *.
+          apply HNeq, H; auto;
+          apply makeTrianglelefteq_base_intro; auto.
+    Qed.
+
+    Lemma makeTrianglelefteqAntisymmetricDec :
+        {makeTrianglelefteq_antisymmetric_fix} + {~ makeTrianglelefteq_antisymmetric_fix}.
+    Proof.
+        unfold makeTrianglelefteq_antisymmetric_fix.
+        destruct (forallPDec _ _ makeTrianglelefteqAntisymmetricPairDec advOrder) as [HAll|HAll].
+        - left; apply forallP_same'; auto.
+        - right; intros H; apply HAll; apply forallP_same' in H; auto.
     Defined.
 
 End MakeAdversaryOrdering.
