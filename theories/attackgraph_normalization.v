@@ -15,7 +15,8 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Init.Datatypes.
 
-Require Import AttestationProtocolOrdering.utilities.list_removeFirst.
+Require Import AttestationProtocolOrdering.utilities.list_functions.
+Require Import AttestationProtocolOrdering.utilities.list_facts.
 Require Import AttestationProtocolOrdering.attackgraph.
 
 
@@ -148,7 +149,7 @@ Section Normalization.
     | (ev1, ev2) :: edges' => match (myLabel A ev1) with 
                               | inl m1 => match (myLabel A ev2) with 
                                          (* if both m1 and m2 are measurement events then replace m1 with m2 *)
-                                         | inl m2 => replaceMeasEvent_fix ev1 ev2 (removeFirst (myEqDec_edge A) (ev1, ev2) allEdges)
+                                         | inl m2 => replaceMeasEvent_fix ev1 ev2 (removeFirst_fix (myEqDec_edge A) (ev1, ev2) allEdges)
                                          | _ => findConsecutiveMeasEvent_fix allEdges edges'
                                          end
                               | _ => findConsecutiveMeasEvent_fix allEdges edges' 
@@ -162,7 +163,7 @@ Section Normalization.
     | findMeas : forall ev1 ev2 m1 m2 edges' reducedEdges,
         myLabel A ev1 = inl m1 ->
         myLabel A ev2 = inl m2 ->
-        replaceMeasEvent_ind ev1 ev2 (removeFirst (myEqDec_edge A) (ev1, ev2) allEdges) reducedEdges ->
+        replaceMeasEvent_ind ev1 ev2 (removeFirst_fix (myEqDec_edge A) (ev1, ev2) allEdges) reducedEdges ->
         findConsecutiveMeasEvent_ind allEdges ((ev1, ev2) :: edges') reducedEdges
     | findAdv1 : forall ev1 ev2 adv edges' reducedEdges,
         myLabel A ev1 = inr adv ->
@@ -326,7 +327,7 @@ Section Normalization.
         intros A edges reducedEdges H HDiff; 
         inversion H; subst.
         - apply replaceMeasEvent_length in H2; rewrite H2.
-         unfold removeFirst. 
+         unfold removeFirst_fix. 
           
          destruct (myEqDec_edge A (ev1, ev2) (ev1, ev2)) as [Heq|Heq].
         -- rewrite PeanoNat.Nat.add_1_r; auto.
@@ -437,7 +438,6 @@ Section Normalization.
         autounfold. intros A edges normEdges; split; intros H.
         - induction H; destruct edges; simpl.
         -- auto.
-           
         -- rewrite H; destruct (myEqDec_edges A (p::edges) (p::edges)) as [Heq|Heq]; auto.
            exfalso; apply Heq; auto.
         -- simpl in H; exfalso; apply H; auto.
@@ -542,7 +542,7 @@ Section Normalization.
     Hint Unfold constantMeasLabel : core.
 
 
-(** normalizeAttackGraph
+(** normalize
  ** 
  ** The complete attack graph normalization procedure. *)
 
@@ -550,7 +550,7 @@ Section Normalization.
      ** are reduced to a single measurement event and
      ** all remaining measurement events are renamed to
      ** a constant label. *)
-    Definition normalizeAttackGraph (A : attackgraph components): option (attackgraph components) := 
+    Definition normalize (A : attackgraph components): option (attackgraph components) := 
     match reduce_option (myEdges A) with
     | Some normEdges => Some {| event := myEvent A ;
                                 edges := normEdges ;
@@ -560,14 +560,14 @@ Section Normalization.
     | None => None
     end.
 
-    Hint Unfold normalizeAttackGraph : core.
+    Hint Unfold normalize : core.
 
     (** Every attack graph has a normal form. *)
-    Lemma normalizeAttackGraph_success : forall A,
-        exists normAttack, normalizeAttackGraph A = Some normAttack.
+    Lemma normalize_success : forall A,
+        exists normAttack, normalize A = Some normAttack.
     Proof.
         intros A;
-        unfold normalizeAttackGraph;
+        unfold normalize;
         remember (reduce_option (myEdges A)) as normEdges;
         destruct normEdges; eauto.
         pose proof (reduce_terminates' A (myEdges A)) as H;

@@ -5,14 +5,39 @@ Require Import AttestationProtocolOrdering.utilities.min.
 
 Require Import AttestationProtocolOrdering.attackgraph.
 Require Import AttestationProtocolOrdering.attackgraph_adversary.
+Require Import AttestationProtocolOrdering.adversary_ordering.
 Require Import AttestationProtocolOrdering.attackgraph_ordering.
-(*Require Import AttestationProtocolOrdering.set_minimization.*)
-
-
 
 
 Section SetOrdering. 
     Context {components : Type}.
+
+(** Partial order over time-contraint tagged adversary event labels *)
+    Context (trianglelefteq : tauTaggedLabel components -> tauTaggedLabel components -> Prop).
+    Context (trianglelefteqDec : forall l1 l2, {trianglelefteq l1 l2} + {~ trianglelefteq l1 l2}).
+    Context (trianglelefteq_tau : forall l, trianglelefteq (blankTag _ l) (tauTag _ l)).
+    Context (trianglelefteq_reflexive : forall l, trianglelefteq l l).
+    Context (trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2).
+    Context (trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3).
+
+    Local Notation preceq := (@preceq components trianglelefteq).
+    Local Notation prec := (@prec components trianglelefteq).
+    Local Notation prec_fix := (@prec_fix components trianglelefteq trianglelefteqDec).
+
+    Local Notation preceqDec := (@preceqDec components trianglelefteq trianglelefteqDec).
+    Local Notation preceq_transitive := (@preceq_transitive components trianglelefteq trianglelefteq_transitive).
+    Local Notation preceq_reflexive := (@preceq_reflexive components trianglelefteq trianglelefteq_reflexive).
+    Local Notation preceq_antisymmetric := (@preceq_antisymmetric components trianglelefteq trianglelefteqDec
+        trianglelefteq_reflexive trianglelefteq_antisymmetric trianglelefteq_transitive).
+    Local Notation prec_same := (@prec_same components trianglelefteq trianglelefteqDec).
+    Local Notation precDec := (@precDec components trianglelefteq trianglelefteqDec).
+    Local Notation prec_irreflexive := (@prec_irreflexive components trianglelefteq).
+    Local Notation prec_asymmetric := (@prec_asymmetric components trianglelefteq trianglelefteqDec
+        trianglelefteq_reflexive trianglelefteq_antisymmetric trianglelefteq_transitive).
+    Local Notation prec_transitive := (@prec_transitive components trianglelefteq trianglelefteqDec
+        trianglelefteq_reflexive trianglelefteq_antisymmetric trianglelefteq_transitive).
+    Local Notation preceq_correct := (@preceq_correct components trianglelefteq trianglelefteq_reflexive).
+    Local Notation prec_simeq1 := (@prec_simeq1 components trianglelefteq trianglelefteq_reflexive trianglelefteq_transitive).
 
 (** equal
  **
@@ -102,8 +127,8 @@ Section SetOrdering.
     Proof.
         intros P Q; split; intros H.
         - intros P' Q' HMinP HMinQ;
-          apply equal_same; unfold equiv_fix in H;
-          eapply min_spo_same in HMinP, HMinQ; try apply prec_same;
+          apply equal_same; unfold equiv_fix in H.
+          eapply min_spo_same in HMinP, HMinQ; try apply prec_same.
           rewrite <- HMinP, <- HMinQ; eauto.
         - apply equal_same; apply H;
           eapply min_spo_same; try apply prec_same; eauto.
@@ -113,7 +138,7 @@ Section SetOrdering.
         {equiv_fix P Q} + {~ equiv_fix P Q}.
     Proof.
         intros; apply equalDec.
-    Defined.
+    Defined. 
 
     Theorem equiv_reflexive : forall P,
         equiv P P.
@@ -150,20 +175,16 @@ Section SetOrdering.
     Definition leq (P Q : list (attackgraph components)) : Prop :=
         supports preceq P Q.
 
-    Hint Unfold leq : core.
-
     Definition leq_fix (P Q : list (attackgraph components)) : Prop :=
-        supports_fix preceq_fix preceqDec P Q.
+        supports_fix preceq preceqDec P Q.
 
+    Hint Unfold leq : core.
 
     Lemma leq_same : forall P Q,
         leq_fix P Q <->
         leq P Q.
     Proof.
-        intros P Q; split; intros HLeq; 
-        [ apply supports_same in HLeq | apply supports_same ]; 
-        intros B HIn; apply HLeq in HIn; destruct HIn as [A];
-        exists A; [ rewrite <- preceq_same | rewrite preceq_same ]; auto.
+        intros P Q; apply supports_same.
     Qed.
 
     Lemma leqDec : forall P Q,
@@ -187,7 +208,7 @@ Section SetOrdering.
         destruct H as [A' H]; destruct H as [HIn' H];
         apply HPQ in HIn'; destruct HIn' as [A HIn']; destruct HIn';
         exists A; split;
-        [ eapply min_in; eauto | ];
+        [ eapply min_incl; eauto | ];
         apply preceq_correct; destruct H; 
         [ left; rewrite prec_same in H; eapply prec_simeq1 
         | right; subst ]; eauto.
@@ -201,15 +222,16 @@ Section SetOrdering.
         intros P Q R HST HTU; eapply supports_transitive; eauto; apply preceq_transitive.
     Qed.
 
-
     Lemma min_leq1 : forall P P',
         min_ind prec P P P' ->
         leq P' P.
     Proof.
         intros P P' HMin B HIn;
         pose proof (min_spoeq prec prec_transitive P P P' HMin B HIn) as HPreceq;
-        destruct HPreceq as [G HPreceq]; destruct HPreceq;
-        exists G; split; auto; apply preceq_preceq; auto.
+        destruct HPreceq as [G HPreceq]; destruct HPreceq as [HIn' HP];
+        exists G; split; auto; destruct HP as [HP|HEq]; subst.
+        - destruct HP; auto.
+        - apply preceq_reflexive; apply simeq_reflexive.
     Qed.
 
     Lemma min_leq2 : forall P P',
@@ -217,7 +239,7 @@ Section SetOrdering.
         leq P P'.
     Proof.
         intros P P' HMin B HIn; exists B; split;
-        [ eapply min_in; eauto | apply preceq_reflexive; apply simeq_reflexive ].
+        [ eapply min_incl; eauto | apply preceq_reflexive; apply simeq_reflexive ].
     Qed.
 
     Lemma leq_min1 : forall P Q P',
@@ -235,7 +257,7 @@ Section SetOrdering.
         min_ind prec Q Q Q' ->
         leq P Q'.
     Proof.
-        intros P Q Q' HLeq HMin B HIn; apply HLeq; eapply min_in; eauto.
+        intros P Q Q' HLeq HMin B HIn; apply HLeq; eapply min_incl; eauto.
     Qed.
 
     Theorem leq_antisymmetric : forall P Q,
@@ -243,6 +265,8 @@ Section SetOrdering.
         leq Q P ->
         equiv P Q.
     Proof.
+        assert (forall A B, {prec A B} + {~ prec A B}) as precDec'
+        by (intros A B; destruct (precDec A B) as [H|H]; rewrite prec_same in H; auto).
         intros P Q HLeqPQ HLeqQP. unfold equiv. intros P' Q' HMinP HMinQ.
         assert (leq P' Q') as HPQ by
         ( pose proof (min_leq1 P P' HMinP); pose proof (min_leq2 Q Q' HMinQ);
@@ -263,9 +287,9 @@ Section SetOrdering.
           assert (forall (A : attackgraph components), ~ prec A A) as prec_irreflexive
             by (intros; apply prec_irreflexive; apply simeq_reflexive);
           pose proof (min_minimal prec prec_irreflexive prec_asymmetric prec_transitive Q Q' HMinQ A' HIn) as HMin;
-          eapply minimal_same in HMin; apply minimal_same' in HMin;
+          apply (minimal_same prec precDec') in HMin; apply minimal_same' in HMin;
           unfold minimal, not in HMin;  
-          eapply HMin; eauto; eapply min_in; eauto.
+          eapply HMin; eauto; eapply min_incl; eauto.
         - exists B'; auto.
         - exfalso; 
           apply HPQ in HIn'; destruct HIn' as [A HIn']; destruct HIn' as [HIn' HOrd];
@@ -275,16 +299,73 @@ Section SetOrdering.
           assert (forall (A : attackgraph components), ~ prec A A) as prec_irreflexive
             by (intros; apply prec_irreflexive; apply simeq_reflexive);
           pose proof (min_minimal prec prec_irreflexive prec_asymmetric prec_transitive P P' HMinP A' HIn) as HMin;
-          eapply minimal_same in HMin; apply minimal_same' in HMin;
+          apply (minimal_same prec precDec') in HMin; apply minimal_same' in HMin;
           unfold minimal, not in HMin;  
-          eapply HMin; eauto; eapply min_in; eauto.
+          eapply HMin; eauto; eapply min_incl; eauto.
         - exists B'; auto.
-        Unshelve.
-        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
-        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
-        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
-        intros x y; pose proof (precDec x y) as HPrecDec; destruct HPrecDec; [left|right]; rewrite <- prec_same; auto.
+    Qed.
+
+    Lemma equiv_leq : forall P Q,
+        equiv P Q ->
+        leq P Q /\ leq Q P.
+    Proof.
+        intros P Q H; split; apply leq_reflexive; [|apply equiv_symmetric]; auto.
+    Qed.
+
+    Theorem leq_min : forall P Q P' Q',
+        min_ind prec P P P' ->
+        min_ind prec Q Q Q' ->
+        leq P Q <->
+        leq P' Q'.
+    Proof.
+        intros P Q P' Q' HP HQ; split; intros HLeq.
+        - pose proof (min_leq1 P P' HP);
+          pose proof (min_leq2 Q Q' HQ);
+          eapply leq_transitive; eauto;
+          eapply leq_transitive; eauto.
+        - pose proof (min_leq2 P P' HP);
+          pose proof (min_leq1 Q Q' HQ);
+          eapply leq_transitive; eauto;
+          eapply leq_transitive; eauto.
+    Qed.          
+
+(** Introduce leq from preceq
+ **
+ ** Ps and Qs are the literal lists that P and Q evaluates to.
+ ** Prove P = Ps and Q = Qs by computation.
+ ** Stating the Forall over Ps and Qs then splits into one preceq goal
+ ** per attack graph, each provable separately. 
+ ** Prove the leq_intro goals with preceqHelper_same, and
+ ** prove the not_leq_intro goals with notPreceq_sound. *)
+
+    Lemma leq_intro : forall P Q Qs,
+        Q = Qs ->
+        Forall (fun B => exists A, In A P /\ preceq A B) Qs ->
+        leq P Q.
+    Proof.
+        intros P Q Qs HEq HAll B HIn; subst; rewrite Forall_forall in HAll; apply HAll; auto.
+    Qed.
+
+    Lemma not_leq_intro : forall P Ps Q B,
+        In B Q ->
+        P = Ps ->
+        Forall (fun A => ~ preceq A B) Ps ->
+        ~ leq P Q.
+    Proof.
+        intros P Ps Q B HB HEq HAll HLeq; subst; destruct (HLeq B HB) as [A [HA HPrec]].
+        rewrite Forall_forall in HAll; apply (HAll A HA HPrec).
     Qed.
 
 
 End SetOrdering. 
+
+Ltac in_at n :=
+    apply (nth_error_In _ n); reflexivity.
+
+Ltac by_map dec A n f :=
+    hnf; exists A; split;
+    [ in_at n
+    | exists f; apply (preceqHelper_same _ dec); vm_compute; exact I ].
+
+Ltac by_hall dec A B S :=
+    apply (notPreceq_sound _ dec A B S); vm_compute; exact I.

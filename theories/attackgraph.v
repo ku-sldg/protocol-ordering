@@ -46,6 +46,24 @@ Section Notations.
     Definition edgesT (A : attackgraph component) := list (eventT A * eventT A).
     Definition labelT (A : attackgraph component) := (eventT A) -> (measLabel component) + (advLabel component).
 
+    Lemma myEqDec_measLabel : forall (A : attackgraph component),
+        forall (x y : measLabel component),
+        {x = y} + {x <> y}.
+    Proof.
+        intros A x y; destruct x as [c1 c2|], y as [c1' c2'|];
+        try (destruct (myEqDec_component A c1 c1'), (myEqDec_component A c2 c2'); subst);
+        auto; right; intros contra; inversion contra; contradiction.
+    Defined.
+
+    Lemma myEqDec_advLabel : forall (A : attackgraph component),
+        forall (x y : advLabel component),
+        {x = y} + {x <> y}.
+    Proof.
+        intros A x y; destruct x as [c|c], y as [c'|c'];
+        destruct (myEqDec_component A c c'); subst;
+        auto; right; intros contra; inversion contra; contradiction.
+    Defined.
+
 
     Lemma myEqDec_labels : forall (A : attackgraph component),
         forall (x y : (measLabel component) + (advLabel component)),
@@ -53,16 +71,10 @@ Section Notations.
     Proof.
         intros A x y. destruct x as [m|a], y as [m'|a'];
         try (right; intros contra; inversion contra; contradiction).
-        - destruct m as [c1 c2|], m' as [c1' c2'|];
-          try (right; intros contra; inversion contra; contradiction);
-          try (destruct (myEqDec_component A c1 c1'), (myEqDec_component A c2 c2'); subst);
-          try (right; intros contra; inversion contra; contradiction);
-          left; auto.
-        - destruct a as [c|c], a' as [c'|c'];
-          try (right; intros contra; inversion contra; contradiction);
-          destruct (myEqDec_component A c c'); subst;
-          try (right; intros contra; inversion contra; contradiction);
-          left; auto.
+        - destruct (myEqDec_measLabel A m m'); subst;
+          auto; right; intros contra; inversion contra; contradiction.
+        - destruct (myEqDec_advLabel A a a'); subst;
+          auto; right; intros contra; inversion contra; contradiction.
     Defined.
     
 End Notations.

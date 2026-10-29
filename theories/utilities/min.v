@@ -74,6 +74,17 @@ Section Min.
         -- apply IHS'; intros y HIn; apply H; simpl; auto.
     Qed.
         
+    Lemma incl_minimal : forall x S S'',
+        incl S'' S ->
+        minimal_ind x S ->
+        minimal_ind x S''.
+    Proof.
+        intros x S S'' HIncl HMin; induction S'' as [|x'' S'']; constructor;
+        apply incl_cons_inv in HIncl; destruct HIncl as [HIn HIncl].
+        - clear HIncl IHS''; generalize dependent x''; induction HMin;
+          intros x'' HIn; destruct HIn; subst; auto.
+        - apply IHS''; auto.
+    Qed.
 
 
 
@@ -139,6 +150,14 @@ Section Min.
           | apply spo_irreflexive ].
         - intros contra; apply H; destruct H0; subst;
           [eapply spo_transitive|]; eauto.
+    Qed.
+
+    Lemma minimal_getMinimal : forall x S,
+        minimal_ind x S ->
+        getMinimal_ind x S x.
+    Proof.
+        intros x S H; induction H;
+        [apply getMinimalNotOrd; auto | apply getMinimalNil].
     Qed.
 
 
@@ -211,10 +230,9 @@ Section Min.
           exists x; split; simpl; auto ].
     Qed.
 
-    Lemma min_in : forall S S'',
+    Lemma min_incl : forall S S'',
         min_ind S S S'' ->
-        forall x'', In x'' S'' ->
-        In x'' S.
+        incl S'' S.
     Proof.
         intros S S'' HMin x'' HIn; eapply min_getMinimal in HMin; eauto;
         destruct HMin as [A HMin]; destruct HMin as [HMin HGet];
@@ -233,6 +251,25 @@ Section Min.
         eapply getMinimal_minimal; eauto.
     Qed.
 
+    Lemma min_minimal_id : forall SS S,
+        (forall x, In x S -> minimal_ind x SS) ->
+        min_ind SS S S.
+    Proof.
+        intros SS S H; induction S as [|x' S']; constructor.
+        - apply minimal_getMinimal; apply H; simpl; auto.
+        - apply IHS'; intros x HIn; apply H; simpl; auto.
+    Qed.
+
+
+    Lemma min_idempotent : forall S S'',
+        min_ind S S S'' ->
+        min_ind S'' S'' S''.
+    Proof.
+        intros S S'' HMin.
+        apply min_minimal_id; intros x HIn. 
+        eapply incl_minimal;
+        [eapply min_incl | eapply min_minimal]; eauto.
+    Qed.
 
 End Min. 
 

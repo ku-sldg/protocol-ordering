@@ -1,134 +1,361 @@
 
 Require Import Coq.Lists.List.
+Require Import Coq.Init.Datatypes.
+Require Import Lia.
 
+Require Import AttestationProtocolOrdering.utilities.nat_le.
+Require Import AttestationProtocolOrdering.utilities.list_functions.
+Require Import AttestationProtocolOrdering.utilities.list_facts.
 Require Import AttestationProtocolOrdering.utilities.mset.
+Require Import AttestationProtocolOrdering.utilities.partialfun.
+Require Import AttestationProtocolOrdering.utilities.map_po.
+Require Import AttestationProtocolOrdering.utilities.permute.
 
 Require Import AttestationProtocolOrdering.attackgraph.
 Require Import AttestationProtocolOrdering.attackgraph_adversary.
+Require Import AttestationProtocolOrdering.adversary_ordering.
+
 
 Section AttackGraphOrdering. 
     Context {components : Type}.
 
+(** Partial order over time-contraint tagged adversary event labels *)
+    Context (trianglelefteq : tauTaggedLabel components -> tauTaggedLabel components -> Prop).
+    Context (trianglelefteqDec : forall l1 l2, {trianglelefteq l1 l2} + {~ trianglelefteq l1 l2}).
+    Context (trianglelefteq_tau : forall l, trianglelefteq (blankTag _ l) (tauTag _ l)).
+    Context (trianglelefteq_reflexive : forall l, trianglelefteq l l).
+    Context (trianglelefteq_antisymmetric : forall l1 l2, trianglelefteq l1 l2 -> trianglelefteq l2 l1 -> l1 = l2).
+    Context (trianglelefteq_transitive : forall l1 l2 l3, trianglelefteq l1 l2 -> trianglelefteq l2 l3 -> trianglelefteq l1 l3).
 
-(** simeq (Equivalence)
- **
- ** Attack graphs A and B are equivalent (i.e., A \simeq B)
- ** if and only if \pi(A) = \pi(B) and \tau(A) = \tau(B). *)
+    Local Notation trianglelefteqOptionDec := (@trianglelefteqOptionDec components trianglelefteq trianglelefteqDec).
+
+
+(** simeq (Equivalence) *)
 
     Definition simeq (A B : attackgraph components) : Prop :=
-        mSameset (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B)) /\
-        mSameset (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B)).
+        mSameset (eqDec_option (myEqDec_ttl A)) (ttlPi A) (ttlPi B).
 
     Definition simeq_fix (A B : attackgraph components) : Prop :=
-        if (mSamesetDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B)))
-        then if (mSamesetDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B)))
-             then True
-             else False
-        else False.
-    
-    Hint Unfold simeq : core.
+        mSameset_fix (eqDec_option (myEqDec_ttl A)) (ttlPi A) (ttlPi B).
 
     Lemma simeq_same : forall A B,
         simeq_fix A B <-> simeq A B.
     Proof.
-        unfold simeq_fix; intros; split; intros H.
-        - destruct (mSamesetDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))),
-                   (mSamesetDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B)));
-          try contradiction;
-          split; apply mSameset_same'; auto.
-        - destruct (mSamesetDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))) as [|Hp],
-                   (mSamesetDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))) as [|Ht];
-          auto; destruct H;
-          try apply Hp; try apply Ht; apply mSameset_same'; auto.
+        intros A B. apply mSameset_same'.
     Qed.
 
-    Lemma simeqDec : forall (A B : attackgraph components),
+    Lemma simeqDec : forall A B,
         {simeq_fix A B} + {~ simeq_fix A B}.
     Proof.
-        unfold simeq_fix; intros A B;
-        destruct (mSamesetDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))),
-                 (mSamesetDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B)));
-        auto.
+        intros A B; apply mSamesetDec.
     Defined.
 
-    Theorem simeq_reflexive : forall A,
+    Lemma simeq_reflexive : forall A,
         simeq A A.
     Proof.
-        intros A; split; apply mSameset_reflexive.
+        intros A; apply mSameset_reflexive.
     Qed.
 
-    Theorem simeq_symmetric : forall A B,
+    Lemma simeq_symmetric : forall A B,
         simeq A B ->
         simeq B A.
     Proof.
-        intros A B H; destruct H; split;
-        apply mSameset_symmetric; eapply mSameset_eqDec; eauto.
+        intros A B H; apply mSameset_symmetric; eapply mSameset_eqDec; eauto.
     Qed.
 
-    Theorem simeq_transitive : forall A B C,
+    Lemma simeq_transitive : forall A B C,
         simeq A B ->
         simeq B C ->
+
         simeq A C.
     Proof.
-        intros A B C H H'; destruct H, H'; split;
-        eapply mSameset_transitive; eapply mSameset_eqDec; eauto.
+        intros A B C H H'; eapply mSameset_transitive; eapply mSameset_eqDec; eauto.
     Qed.
 
-(** preceq (Partial order)
- **
- ** Attack graph A is less than or equal to B (i.e., A \preceq B)
- ** if and only if \pi(A) \subseteq \pi(B) and \tau(A) \subseteq \tau(B) *)
 
+
+Local Notation trianglelefteq_option := (@trianglelefteq_option components trianglelefteq).
+
+
+(** preceq (Partial Order) *)
+
+    (** Mathematical Definition - Association List *)
+     Definition preceqHelper (A B : attackgraph components) (f : list (eventT A * eventT B)) : Prop :=
+        (* Injective map f from pi(A) to pi(B) *)
+        mSameset (myEqDec_event A) (map fst f) (pi A) /\ mIncluded (myEqDec_event B) (map snd f) (pi B) /\
+        (* For every n in \pi(a), the tagged label of n is less than the tagged label of f(n) *)
+        (forall ev, trianglelefteq_option (myLabelTagged ev) (myLabelTagged_option (find (myEqDec_event A) f ev))).
+    
     Definition preceq (A B : attackgraph components) : Prop :=
-        mIncluded (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B)) /\
-        mIncluded (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B)).
+        exists f, preceqHelper A B f.
 
-    Definition preceq_fix (A B : attackgraph components) : Prop :=
-        if mIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B)) 
-        then if mIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))
-            then True
-            else False
+    (** Fixpoint Definition (Helper only) *)
+    Definition preceqHelper_fix (A B : attackgraph components) (f : list (eventT A * eventT B)) : Prop :=
+        if mSamesetDec (myEqDec_event A) (map fst f) (pi A)
+        then if mIncludedDec (myEqDec_event B) (map snd f) (pi B)
+             then forallP_fix (fun ev => trianglelefteqOptionDec (myLabelTagged ev) (myLabelTagged_option (find (myEqDec_event A) f ev))) (pi A)
+             else False
         else False.
+   
+    (** Mathematical Definition - Function *)
+    Definition preceqHelper_fun (A B : attackgraph components) (f : eventT A -> eventT B) : Prop :=
+        (* Injective map f from pi(A) to pi(B) *)
+        partialFunction f (pi A) (pi B) /\ partialInjective f (pi A) /\
+        (* For every n in \pi(a), the tagged label of n is less than the tagged label of f(n) *)
+        (forall ev, trianglelefteq_option (myLabelTagged ev) (myLabelTagged (f ev))). 
+    
+    Definition preceq_fun (A B : attackgraph components) : Prop :=
+        exists f, preceqHelper_fun A B f.
+   
+    (** Inductive Definition *)
+    Inductive preceqHelper_ind {A B : attackgraph components} :
+        list (eventT A) -> list (eventT B) -> Prop :=
+    | preceqCons : forall ev ev' pi pi', 
+        In ev' pi' ->
+        trianglelefteq_option (myLabelTagged ev) (myLabelTagged ev') ->
+        preceqHelper_ind (pi) (remove (myEqDec_event B) ev' pi') ->
+        preceqHelper_ind (ev :: pi) (pi')
+    | preceqNil : forall pi',
+        preceqHelper_ind nil pi'.
+    
+    Definition preceq_ind (A B : attackgraph components) :=
+        preceqHelper_ind (pi A) (pi B).
 
-    Hint Unfold preceq : core.
 
-    Lemma preceq_same : forall A B,
-        preceq_fix A B <-> preceq A B.
+
+    Lemma preceqDec : forall A B, 
+        {preceq A B} + {~ preceq A B}.
     Proof.
-        unfold preceq_fix; intros; split; intros H.
-        - destruct (mIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))),
-                   (mIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B)));
-          try contradiction;
-          split; apply mIncluded_same'; auto.
-        - destruct (mIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))) as [|Hp],
-                   (mIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))) as [|Ht];
-          auto; destruct H;
-          try apply Hp; try apply Ht; apply mIncluded_same'; auto.
-    Qed.
-
-    Lemma preceqDec : forall (A B : attackgraph components),
-        {preceq_fix A B} + {~ preceq_fix A B}.
-    Proof.
-        unfold preceq_fix; intros A B;
-        destruct (mIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))),
-                 (mIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B)));
-        auto.
+        intros A B.
+        assert (NoDup (pi A)) as HNd_A by (unfold pi; apply NoDup_nodup).
+        assert (NoDup (pi B)) as HNd_B by (unfold pi; apply NoDup_nodup).
+        destruct (leDec (length (pi A)) (length (pi B))) as [HLen|HLen].
+        - assert (forall m, In m (getAllInjections (pi A) (pi B)) -> map fst m = pi A) as HFst.
+          { intros m HInM. apply in_map_iff in HInM; destruct HInM as [p [HEq HInP]].
+            pose proof (permutations_length (pi B) p HInP) as HLenP.
+            rewrite <- HEq; apply combine_fst_full; rewrite <- HLenP; apply le_same; auto. }
+          assert (forall m, In m (getAllInjections (pi A) (pi B)) -> NoDup (map fst m)) as HNdFst.
+          { intros m HInM; rewrite HFst; auto. }
+          assert (forall m, In m (getAllInjections (pi A) (pi B)) -> mIncluded (myEqDec_event B) (map snd m) (pi B)) as HSnd.
+          { intros m HInM. apply in_map_iff in HInM; destruct HInM as [p [HEq HInP]].
+            rewrite <- HEq; apply mIncluded_transitive with p;
+            [ apply combine_snd_mIncluded
+            | apply mIncluded_reflexive; apply mSameset_symmetric; 
+              apply Permutation_mSameset; apply Permutation_permutations; auto]. }
+          pose (tagP := (fun (m : list (eventT A * eventT B)) =>
+                    Forall (fun ev => trianglelefteq_option (myLabelTagged ev) (myLabelTagged_option (find (myEqDec_event A) m ev))) (pi A))).
+          assert (forall m, {tagP m} + {~ tagP m}) as tagPDec.
+          { intros m; unfold tagP; apply Forall_dec; intros ev; apply trianglelefteqOptionDec. }
+          destruct (Exists_dec tagP (getAllInjections (pi A) (pi B)) tagPDec) as [HEx|HNEx].
+        -- left. apply Exists_exists in HEx; destruct HEx as [f [HIn HTag]].
+           exists f; unfold preceq; split; [|split].
+        --- rewrite HFst; auto; apply mSameset_reflexive.
+        --- apply HSnd; auto.
+        --- apply trianglelefteq_Forall; apply HTag.
+        -- right. intros [f [HS [HI HTag]]].
+           apply HNEx; apply Exists_exists.
+           pose proof (getAllInjections_msetMap (myEqDec_event A) (myEqDec_event B) (pi A) (pi B) HNd_A HNd_B f HS HI) as HFlat.
+           apply in_flat_map in HFlat; destruct HFlat as [m [HInM HInF]].
+           exists m; split; auto.
+           unfold tagP; apply trianglelefteq_Forall; intros ev.
+           assert (find (myEqDec_event A) m ev = find (myEqDec_event A) f ev) as HFind.
+           { apply find_Permutation; [apply (myEqDec_event B) | apply Permutation_permutations |]; auto. }
+           unfold eventT in *; rewrite HFind; apply HTag.
+        - right. intros [f [HS [HI HTag]]]; apply HLen.
+          pose proof (mSameset_length (myEqDec_event A) _ _ HS) as HS'; rewrite length_map in HS'.
+          pose proof (mIncluded_length (myEqDec_event B) _ _ HI) as HI'; rewrite length_map in HI'.
+          rewrite HS' in HI'; apply le_same; auto.
     Defined.
 
-    Theorem preceq_reflexive : forall A B,
-        simeq A B ->
-        preceq A B.
+    Lemma preceqHelperDec : forall A B f,
+        {preceqHelper_fix A B f} + {~ preceqHelper_fix A B f}.
     Proof.
-        intros A B H; destruct H; split; apply mIncluded_reflexive; auto.
+        intros A B f; unfold preceqHelper_fix.
+        destruct (mSamesetDec (myEqDec_event A) (map fst f) (pi A)); [|right; auto];
+        destruct (mIncludedDec (myEqDec_event B) (map snd f) (pi B)); [|right; auto];
+        destruct (forallPDec _ _ (fun ev : myEvent A => trianglelefteqOptionDec (myLabelTagged ev) (myLabelTagged_option (find (myEqDec_event A) f ev))) (pi A));
+        [left|right]; rewrite forallP_same'; auto.
+    Defined.
+
+    Lemma preceqHelper_same : forall A B f,
+        preceqHelper_fix A B f <->
+        preceqHelper A B f.
+    Proof.
+        intros A B f; unfold preceqHelper_fix, preceqHelper; split; intros H.
+        - destruct (mSamesetDec (myEqDec_event A) (map fst f) (pi A)) as [HS|]; [|contradiction].
+          destruct (mIncludedDec (myEqDec_event B) (map snd f) (pi B)) as [HI|]; [|contradiction].
+          apply forallP_same' in H; apply mSameset_same' in HS; apply mIncluded_same' in HI.
+          split; [|split]; auto.
+          apply trianglelefteq_Forall; apply Forall_forall; auto.
+        - destruct H as [HS [HI H]]; apply mSameset_same' in HS; apply mIncluded_same' in HI.
+          destruct (mSamesetDec (myEqDec_event A) (map fst f) (pi A)); [|contradiction].
+          destruct (mIncludedDec (myEqDec_event B) (map snd f) (pi B)); [|contradiction].
+          apply forallP_same'; intros ev HIn.
+          apply trianglelefteq_Forall in H; rewrite Forall_forall in H; apply H; auto.
     Qed.
 
-    Theorem preceq_antisymmetric : forall A B,
+    
+    Lemma preceq_def_to_fun : forall A B,
+        inhabited (eventT B) ->
         preceq A B ->
-        preceq B A ->
-        simeq A B.
+        preceq_fun A B.
     Proof.
-        intros A B H H'; destruct H, H'; split;
-        apply mIncluded_antisymmetric; auto; eapply mIncluded_eqDec; eauto.
+        intros A B [yd] [f [HS [HI HTag]]].
+          exists (fun a => match find (myEqDec_event A) f a with Some b => b | None => yd end).
+          unfold preceq; split; [| split].
+        - intros a HaIn.
+          apply match_find_P; eapply find_ys; eauto.
+        - intros a1 a2 [HaIn1 HaIn2] Heq.
+          pose proof (find_ys (myEqDec_event A) (myEqDec_event B) f a1 (pi A) (pi B) HS HI a1 HaIn1) as [b1 [Hb1 _]].
+          pose proof (find_ys (myEqDec_event A) (myEqDec_event B) f a2 (pi A) (pi B) HS HI a2 HaIn2) as [b2 [Hb2 _]].
+          assert (NoDup (pi B)) as HNdB by (unfold pi; apply NoDup_nodup).
+          assert (NoDup (map snd f)) as HNdSnd by (eapply mIncluded_NoDup; eauto).
+          unfold eventT in *; rewrite Hb1, Hb2 in Heq; subst.
+          apply find_In in Hb1, Hb2. 
+          eapply NoDup_map_snd; eauto.
+        - intros a. destruct (in_dec (myEqDec_event A) a (pi A)) as [HaIn|HaNIn].
+        -- pose proof (find_ys (myEqDec_event A) (myEqDec_event B) f a (pi A) (pi B) HS HI a HaIn) as [b [Hb HbIn]].
+           apply match_find_P; exists b; split; auto.
+           specialize HTag with a; unfold eventT in *; rewrite Hb in HTag;
+           simpl in HTag; auto.
+        -- apply myLabelTagged_none in HaNIn; rewrite HaNIn; simpl; auto.
+    Qed.
+
+    Lemma preceq_fun_to_def : forall A B,
+        preceq_fun A B ->
+        preceq A B.
+    Proof.
+        intros A B [f [Hf [HfInj HfTri]]].
+        assert (NoDup (pi A)) as HNd_A by (unfold pi; apply NoDup_nodup).
+        assert (le (length (pi A)) (length (map f (pi A)))) as HLen by (rewrite length_map; auto).
+        exists (combine (pi A) (map f (pi A))); split; [| split].
+        - rewrite combine_fst_full; auto; apply mSameset_reflexive.
+        - rewrite combine_snd_full; [| rewrite length_map; auto]. 
+          apply incl_NoDup_mIncluded.
+        -- apply partialInjective_carac; auto.
+        -- intros b HbIn; apply in_map_iff in HbIn; destruct HbIn as [a [Heq HaIn]]; subst.
+           apply Hf; auto.
+        - intros ev; destruct (in_dec (myEqDec_event A) ev (pi A)) as [HevIn|HevNIn].
+        -- rewrite find_combine_map; auto.
+        -- apply myLabelTagged_none in HevNIn; rewrite HevNIn; simpl; auto.
+    Qed.
+
+
+    Lemma preceq_fun_to_ind : forall A B,
+        preceq_fun A B ->
+        preceq_ind A B.
+    Proof.
+        intros A B H.
+        unfold preceq_fun, preceqHelper_fun, preceq_ind in *.
+        remember (pi A) as piA.
+        assert (NoDup piA) as HNd by (rewrite HeqpiA; apply NoDup_nodup).
+        clear HeqpiA.
+        generalize dependent (pi B). induction piA as [|ev piA]; intros.
+        - apply preceqNil.
+        - destruct H as [f [HfIn [HfInj HfTri]]].
+          apply preceqCons with (ev' := f ev).
+        -- apply HfIn; simpl; auto.
+        -- apply HfTri.
+        -- inversion HNd; subst. apply IHpiA; auto.
+           exists f. repeat split; auto.
+        --- intros e HeIn. apply in_in_remove.
+        ---- intros contra. apply HfInj in contra; simpl; auto; subst. contradiction.
+        ---- apply HfIn; simpl; auto.
+        --- apply partialInjective_incl with (xs:=ev::piA); auto.
+            intros e HeIn; simpl; auto.
+    Qed.
+
+    Lemma preceq_fun_strong : forall A B,
+        preceq_fun A B <->
+        (exists f, partialFunction f (pi A) (pi B) /\ partialInjective f (pi A) /\  (forall ev, In ev (pi A) -> trianglelefteq_option (myLabelTagged ev) (myLabelTagged (f ev)))).
+    Proof.
+        intros A B; split; intros H; destruct H as [f [HfIn [HfInj HfTri]]];
+        exists f; repeat split; auto.
+        intros ev. destruct (in_dec (myEqDec_event A) ev (pi A)); auto.
+        apply myLabelTagged_none in n. unfold trianglelefteq_option. rewrite n; auto.
+    Qed.
+
+    Lemma preceq_ind_to_fun : forall A B,
+        inhabited (eventT B) ->
+        preceq_ind A B ->
+        preceq_fun A B.
+    Proof.
+        intros A B nmt_eventTB H.
+        apply preceq_fun_strong. unfold preceq_ind in *.
+        remember (pi A) as piA.
+        assert (NoDup piA) as HNd by (rewrite HeqpiA; apply NoDup_nodup).
+        clear HeqpiA. induction H.
+        - inversion HNd; subst. apply IHpreceqHelper_ind in H5.
+          clear IHpreceqHelper_ind.
+          destruct H5 as [f [HfIn [HfInj HfTri]]].
+          exists ( fun e => if (myEqDec_event A) ev e
+                            then ev'
+                            else f e).
+          repeat split.
+        -- intros e HeIn. destruct HeIn; subst.
+        --- destruct (myEqDec_event A e e); try contradiction. auto.
+        --- destruct (myEqDec_event A ev e); subst; try contradiction.
+            apply HfIn in H2. apply in_remove in H2; destruct H2; auto.
+        -- intros e1 e2 [HIn1 HIn2] HEq.
+           destruct (myEqDec_event A ev e1), (myEqDec_event A ev e2); subst; auto.
+        --- exfalso. destruct HIn2 as [|HIn2]; subst; try contradiction.
+            apply HfIn in HIn2. apply in_remove in HIn2; destruct HIn2; contradiction.
+        --- exfalso. destruct HIn1 as [|HIn1]; subst; try contradiction.
+            apply HfIn in HIn1. apply in_remove in HIn1; destruct HIn1; contradiction.
+        --- destruct HIn1, HIn2; subst; try contradiction. apply HfInj; auto.
+        -- intros e HeIn. destruct (myEqDec_event A ev e); subst;
+           destruct HeIn; try contradiction; auto.
+        - destruct nmt_eventTB as [e']. exists (fun _ => e'). repeat split.
+        -- intros e HeIn. inversion HeIn.
+        -- intros e1 e2 [HIn1 HIn2]. inversion HIn1.
+        -- intros ee HeIn. inversion HeIn.
+    Qed.
+
+
+    Lemma preceq_same : forall A B,
+        preceq A B <->
+        preceq_ind A B.
+    Proof.
+        intros A B; split; intros H.
+        - destruct H as [f H].
+          destruct (pi A) as [|a' piA'] eqn:HeqA.
+        -- unfold preceq_ind; rewrite HeqA; apply preceqNil.
+        -- assert (inhabited (eventT B)) as Hnmt_eventTB.
+           { destruct H as [HS _].
+             pose proof (mSameset_correct (myEqDec_event A) _ _ HS) as [_ HI].
+             assert (In a' (map fst f)) as HInFst
+             by (apply (mIncluded_incl _ _ _ HI); rewrite HeqA; simpl; auto).
+             apply in_map_iff in HInFst; destruct HInFst as [[a b] [Heq _]]; simpl in Heq; subst.
+             constructor; auto. }
+           apply preceq_fun_to_ind; apply preceq_def_to_fun; unfold preceq; eauto.
+        - destruct (pi A) as [|a' piA'] eqn:HeqA.
+        -- exists nil; unfold preceq; split; [| split].
+        --- rewrite HeqA; apply mSameset_reflexive.
+        --- intros y HIn; inversion HIn.
+        --- intros ev; simpl; unfold trianglelefteq_option.
+           assert (myLabelTagged ev = None) as HEq
+           by (apply myLabelTagged_none; rewrite HeqA; intros contra; inversion contra).
+           rewrite HEq; auto.
+        -- assert (inhabited (eventT B)) as Hnmt_eventTB.
+           { unfold preceq_ind in H; rewrite HeqA in H.
+             inversion H; subst. constructor; auto. }
+           apply preceq_fun_to_def; apply preceq_ind_to_fun; auto.
+    Qed.
+
+
+
+(** Preceq partial order *)
+
+    Theorem preceq_fun_transitive : forall A B C,
+        preceq_fun A B ->
+        preceq_fun B C ->
+        preceq_fun A C.
+    Proof.
+        intros A B C [f [HfIn [HfInj HfTri]]] [g [HgIn [HgInj HgTri]]].
+        exists (fun e => g (f e)); repeat split.
+        - intros e HeIn; auto.
+        - intros e1 e2 [HIn1 HIn2]; auto.
+        - intros e. eapply (@trianglelefteqOption_transitive _ _ trianglelefteq_transitive); eauto.
     Qed.
 
     Theorem preceq_transitive : forall A B C,
@@ -136,164 +363,265 @@ Section AttackGraphOrdering.
         preceq B C ->
         preceq A C.
     Proof.
-        intros A B C H H'; destruct H, H';
-        split; eapply mIncluded_transitive; eauto; eapply mIncluded_eqDec; eauto.
+        intros A B C [f Hf] [g Hg].
+        destruct (pi A) as [|a' piA'] eqn:HeqA.
+        - exists nil; split; [| split].
+        -- rewrite HeqA; apply mSameset_reflexive.
+        -- intros y HIn; inversion HIn.
+        -- intros ev; simpl; unfold trianglelefteq_option.
+           assert (myLabelTagged ev = None) as HEq
+           by (apply myLabelTagged_none; rewrite HeqA; intros contra; inversion contra).
+           rewrite HEq; auto.
+        - assert (inhabited (eventT B)) as nmt_eventTB.
+          { destruct Hf as [HS _].
+            pose proof (mSameset_correct (myEqDec_event A) _ _ HS) as [_ HI].
+            assert (In a' (map fst f)) as HInFst
+            by (apply (mIncluded_incl _ _ _ HI); rewrite HeqA; simpl; auto).
+            apply in_map_iff in HInFst; destruct HInFst as [[a b] [Heq _]]; simpl in Heq; subst.
+            constructor; auto. }
+          pose proof (preceq_def_to_fun A B nmt_eventTB (ex_intro _ f Hf)) as [f' Hf'].
+          assert (inhabited (eventT C)) as nmt_eventTC.
+          { destruct Hg as [HS _].
+            pose proof (mSameset_correct (myEqDec_event B) _ _ HS) as [_ HI].
+            assert (In (f' a') (pi B)) as HInF'
+            by (destruct Hf' as [Hf' _]; apply Hf'; rewrite HeqA; simpl; auto).
+            assert (In (f' a') (map fst g)) as HInFst
+            by (apply (mIncluded_incl _ _ _ HI); apply HInF').
+            apply in_map_iff in HInFst; destruct HInFst as [[b c] [Heq _]]; simpl in Heq; subst.
+            constructor; auto. }
+          pose proof (preceq_def_to_fun B C nmt_eventTC (ex_intro _ g Hg)) as [g' Hg'].
+          apply preceq_fun_to_def; eapply preceq_fun_transitive; unfold preceq_fun; eauto.
+    Qed.
+
+    Theorem preceq_reflexive : forall A B,
+        simeq A B ->
+        preceq A B.
+    Proof.
+        unfold simeq.
+        intros A B HS. apply preceq_same. rewrite mSameset_universe in HS.
+        unfold preceq_ind, ttlPi in *.
+        assert (NoDup (pi B)) as HNodupB 
+        by (unfold pi; apply NoDup_nodup).
+        assert (forall ev', In ev' (pi B) -> exists t, (myLabelTagged ev') = Some t) as HSome 
+        by (intros; apply myLabelTagged_some; auto). 
+        generalize dependent (pi B). induction (pi A) as [|ev piA]; intros piB; intros.
+        - apply preceqNil.
+        - pose proof (HS (myLabelTagged ev)) as HEq.
+          remember (multiplicity_fix (eqDec_option (myEqDec_ttl A)) (myLabelTagged ev) (map myLabelTagged (ev :: piA))) as mEv.
+          destruct mEv.
+        -- exfalso. symmetry in HeqmEv; apply multiplicity_zero in HeqmEv.
+           apply HeqmEv; simpl; auto.
+        -- assert (le_fix 1 (S mEv)) as HIn by (simpl; auto).
+           rewrite HEq in HIn; apply multiplicity_succ in HIn; apply in_map_iff in HIn; 
+           destruct HIn as [ev' HIn]; destruct HIn as [Hl HIn];
+           apply preceqCons with (ev':=ev'); auto.
+        --- apply HSome in HIn; destruct HIn as [t HOption]; 
+            rewrite <- Hl; rewrite HOption; simpl; auto.
+        --- apply IHpiA.
+        ---- apply mSameset_universe. split.
+        ----- intros a' H; rewrite HeqmEv in HEq; simpl in HEq. 
+             destruct (eqDec_option (myEqDec_ttl A) (myLabelTagged ev) (myLabelTagged ev)); subst;
+             try contradiction;
+             destruct (eqDec_option (myEqDec_ttl B) (myLabelTagged ev') a'); subst.
+        ------ assert (multiplicity_fix (eqDec_option (myEqDec_ttl A)) (myLabelTagged ev') (map myLabelTagged piB) = S (multiplicity_fix (eqDec_option (myEqDec_ttl A)) (myLabelTagged ev') (map myLabelTagged (remove (myEqDec_event B) ev' piB))))
+               as Hmult by (eapply multiplicity_map_eq; auto).
+               rewrite <- Hl in HEq; rewrite <- HEq in Hmult;
+               inversion Hmult; auto.
+        ------ assert (multiplicity_fix (eqDec_option (myEqDec_ttl A)) a' (map myLabelTagged piB) = multiplicity_fix (eqDec_option (myEqDec_ttl A)) a' (map myLabelTagged (remove (myEqDec_event B) ev' piB)))
+               as Hmult by (eapply multiplicity_map_neq; auto).
+               rewrite <- Hmult; rewrite <- HS; simpl; auto.
+               destruct (eqDec_option(myEqDec_ttl A) a' (myLabelTagged ev)); subst; 
+               try contradiction; auto.
+        ----- intros a' H. rewrite HeqmEv in HEq; simpl in HEq. 
+              destruct (eqDec_option (myEqDec_ttl A) (myLabelTagged ev) (myLabelTagged ev)); subst;
+              try contradiction.
+              destruct (eqDec_option (myEqDec_ttl B) (myLabelTagged ev') a'); subst.
+        ------ assert (multiplicity_fix (eqDec_option (myEqDec_ttl A)) (myLabelTagged ev') (map myLabelTagged piB) = S (multiplicity_fix (eqDec_option (myEqDec_ttl A)) (myLabelTagged ev') (map myLabelTagged (remove (myEqDec_event B) ev' piB))))
+               as Hmult by (eapply multiplicity_map_eq; auto).
+               rewrite <- Hl in HEq; rewrite <- HEq in Hmult;
+               inversion Hmult; auto.
+        ------ assert (multiplicity_fix (eqDec_option (myEqDec_ttl A)) a' (map myLabelTagged piB) = multiplicity_fix (eqDec_option  (myEqDec_ttl A)) a' (map myLabelTagged (remove (myEqDec_event B) ev' piB)))
+               as Hmult by (eapply multiplicity_map_neq; auto).
+               rewrite <- Hmult; rewrite <- HS; simpl; auto.
+               destruct (eqDec_option (myEqDec_ttl A) a' (myLabelTagged ev)); subst; 
+               try contradiction; auto.
+        ---- intros. apply remove_NoDup. auto.
+        ---- intros ev'' H; apply HSome.
+             apply in_remove in H; destruct H; auto.
+    Qed.
+
+    
+    Theorem preceq_fun_antisymmetric : forall A B,
+        preceq_fun A B ->
+        preceq_fun B A ->
+        simeq A B.
+    Proof.
+        intros A B [f [HfIn [HfInj HfTri]]] [g [HgIn [HgInj HgTri]]].
+        pose proof (trianglelefteqOptionDec) as trianglelefteqOptionDec.
+        pose proof (@trianglelefteqOption_reflexive _ _ trianglelefteq_reflexive) as trianglelefteqOption_reflexive.
+        pose proof (@trianglelefteqOption_antisymmetric _ _ trianglelefteq_antisymmetric) as trianglelefteqOption_antisymmetric.
+        pose proof (@trianglelefteqOption_transitive _ _ trianglelefteq_transitive) as trianglelefteqOption_transitive.
+        pose proof eqDec_event as eqDec_event.
+        assert (NoDup (pi A)) as HaNd by apply NoDup_nodup.
+        assert (NoDup (pi B)) as HbNd by apply NoDup_nodup.
+        apply partialBijective_mSameset with (f:=f); auto.
+        - repeat split; auto.
+          apply cantorSchroderBernstein_finite with (g:=g); auto.
+        - apply function_fixed with (po:=trianglelefteq_option) (g:=g) (ys:=pi B); auto.
+    Qed.
+    
+    Theorem preceq_antisymmetric : forall A B,
+        preceq A B ->
+        preceq B A ->
+        simeq A B.
+    Proof.
+        intros A B [f Hf] [g Hg].
+        destruct (pi A) as [|a' piA'] eqn:HeqA.
+        - assert (preceq_ind B A) as Hg' by (apply preceq_same; exists g; auto).
+          unfold preceq_ind in Hg'; rewrite HeqA in Hg'.
+          assert (pi B = nil) as HeqB
+          by (destruct (pi B) as [|b' piB']; auto; inversion Hg'; subst; inversion H1).
+          unfold simeq, ttlPi; rewrite HeqA, HeqB; apply mSameset_reflexive.
+        - assert (inhabited (eventT A)) as nmt_eventTA by exact (inhabits a').
+          assert (inhabited (eventT B)) as nmt_eventTB.
+          { destruct Hf as [HS _].
+            pose proof (mSameset_correct (myEqDec_event A) _ _ HS) as [_ HI].
+            assert (In a' (map fst f)) as HInFst
+            by (apply (mIncluded_incl _ _ _ HI); rewrite HeqA; simpl; auto).
+            apply in_map_iff in HInFst; destruct HInFst as [[a b] [Heq _]]; simpl in Heq; subst.
+            constructor; auto. }
+          pose proof (preceq_def_to_fun A B nmt_eventTB (ex_intro _ f Hf)).
+          pose proof (preceq_def_to_fun B A nmt_eventTA (ex_intro _ g Hg)).
+          apply preceq_fun_antisymmetric; auto.
     Qed.
 
 
-
-
-
-(** prec (Strict partial order)
- **
- ** Attack graph A is strictly less than B (i.e., A \prec B)
- ** if and only if \pi(A) \subseteq \pi(B) and \tau(A) \subseteq \tau(B)
- ** and either \pi(A) \subset \pi(B) or \tau(A) \subset \tau(B). *)
+    (** prec (Strict Partial Order) *)
 
     Definition prec (A B : attackgraph components) : Prop :=
-        mIncluded (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B)) /\
-        mIncluded (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B)) /\
-        ( mStrictIncluded (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B)) \/
-          mStrictIncluded (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))).
+        preceq A B /\ ~ simeq A B.
 
     Definition prec_fix (A B : attackgraph components) : Prop :=
-        if mIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))
-        then if mIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))
-             then if mStrictIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))
-                  then True
-                  else if mStrictIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))
-                       then True
-                  else False
-             else False
-        else False.
+        if (simeqDec A B)
+        then False
+        else if (preceqDec A B)
+             then True
+             else False.
 
-    Hint Unfold prec : core.
-
-    Lemma prec_same : forall A B,
-        prec_fix A B <-> prec A B.
+    Lemma prec_same: forall A B,
+        prec_fix A B <->
+        prec A B.
     Proof.
-        unfold prec_fix; intros; split; intros H.
-        - destruct (mIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))) as [Hp|Hp], 
-                   (mIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))) as [Ht|Ht],
-                   (mStrictIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))) as [Hp'|Hp'], 
-                   (mStrictIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))) as [Ht'|Ht'];
-          try inversion H; repeat split; 
-          try (eapply mIncluded_same'; eauto; fail);
-          try (left; eapply mStrictIncluded_same'; eauto; fail);
-          try (right; eapply mStrictIncluded_same'; eauto; fail). 
-        - destruct (mIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))) as [Hp|Hp], 
-                   (mIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))) as [Ht|Ht],
-                   (mStrictIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))) as [HP|HP], 
-                   (mStrictIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))) as [HT|HT];
-          destruct H as [Hp' H]; destruct H as [Ht' H]; auto;
-          try (apply Hp; eapply mIncluded_same'; eauto);
-          try (apply Ht; eapply mIncluded_same'; eauto);
-          destruct H; [apply HP | apply HT]; eapply mStrictIncluded_same'; eauto.
+        intros A B; unfold prec_fix, prec; rewrite <- simeq_same.
+        destruct (simeqDec A B).
+        - split; intros contra; inversion contra. contradiction.
+        - destruct preceqDec; split; try (intros; auto; fail);
+          intros contra; inversion contra. contradiction.
     Qed.
 
-    Lemma precDec : forall (A B : attackgraph components),
+    Lemma precDec : forall A B, 
         {prec_fix A B} + {~ prec_fix A B}.
     Proof.
-        intros; unfold prec_fix; 
-        destruct (mIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))), 
-                 (mIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B))),
-                 (mStrictIncludedDec (myEqDec_labels A) (map (myLabel A) (pi A)) (map (myLabel B) (pi B))), 
-                 (mStrictIncludedDec (myEqDec_labels A) (map (myLabel A) (tau A)) (map (myLabel B) (tau B)));
-        auto.
+        intros A B; unfold prec_fix.
+        destruct (simeqDec A B); auto.
+        destruct (preceqDec A B); auto.
     Defined.
 
-    Theorem prec_irreflexive : forall A B,
+    Lemma prec_irreflexive : forall A B,
         simeq A B ->
         ~ prec A B.
     Proof.
-        intros A B H H';
-        destruct H as [H H0]; apply mSameset_correct in H, H0; destruct H, H0.
-        destruct H' as [H' H0']; destruct H0' as [H0' HP];
-        destruct HP as [HP|HP]; destruct HP; contradiction.
+        intros A B HS [HP HNS]. contradiction.
     Qed.
 
-    Theorem prec_asymmetric : forall A B,
+    Lemma prec_asymmetric : forall A B,
         prec A B ->
         ~ prec B A.
     Proof.
-        intros A B HAB HBA;
-        destruct HAB as [HpAB HAB]; destruct HAB as [HtAB HAB];
-        destruct HBA as [HpBA HBA]; destruct HBA as [HtBA HBA];
-        destruct HAB as [HAB|HAB];
-        destruct HAB as [HAB contra];
-        apply contra; eapply mIncluded_eqDec; eauto.
+        intros A B [HaP HaNS] [HbP HbNS].
+        apply HaNS; apply preceq_antisymmetric; auto.
     Qed.
 
-    Theorem prec_transitive : forall A B C,
+    Lemma prec_transitive : forall A B C,
         prec A B ->
         prec B C ->
         prec A C.
     Proof.
-        intros A B C HAB HBC;
-        destruct HAB as [HpAB HAB]; destruct HAB as [HtAB HAB];
-        destruct HBC as [HpBC HBC]; destruct HBC as [HtBC HBC];
-        eapply mIncluded_eqDec in HpBC, HtBC;
-        repeat split;
-        try (eapply mIncluded_transitive; eauto);
-        destruct HAB; [ left | right ];
-        eapply mStrictIncluded_mIncluded1; eauto.
+        intros A B C [HaP HaNS] [HbP HbNS]. split.
+        - eapply preceq_transitive; eauto.
+        - intros HS; apply HaNS.
+          apply preceq_antisymmetric; auto.
+          eapply preceq_transitive; eauto.
+          apply preceq_reflexive; auto; apply simeq_symmetric; auto.
     Qed.
 
-   
-    Lemma prec_simeq1 : forall A B C,
-        simeq A B ->
-        prec B C ->
-        prec A C.
-    Proof.
-        intros A B C HAB HBC;
-        destruct HAB as [HpAB HtAB]; apply mSameset_correct in HpAB, HtAB; destruct HpAB, HtAB;
-        destruct HBC as [HpBC HBC]; destruct HBC as [HtBC HBC];
-        repeat split;
-        try (eapply mIncluded_transitive; eauto; eapply mIncluded_eqDec; eauto);
-        destruct HBC; [ left | right ];
-        eapply mStrictIncluded_mIncluded2; eauto; eapply mStrictIncluded_eqDec; eauto.
-    Qed.
 
-    Lemma prec_simeq2 : forall A B C,
-        prec A B ->
-        simeq B C ->
-        prec A C.
-    Proof.
-        intros A B C HAB HBC;
-        destruct HAB as [HpAB HAB]; destruct HAB as [HtAB HAB];
-        destruct HBC as [HpBC HtBC]; apply mSameset_correct in HpBC, HtBC; destruct HpBC, HtBC;
-        repeat split;
-        try (eapply mIncluded_transitive; eauto; eapply mIncluded_eqDec; eauto);
-        destruct HAB; [ left | right ];
-        eapply mStrictIncluded_mIncluded1; eauto; eapply mIncluded_eqDec; eauto.
-    Qed.
 
     Lemma preceq_correct : forall A B,
         preceq A B <->
         prec A B \/ simeq A B.
     Proof.
-        intros A B; split; intros H. 
-        - destruct H as [H H'].
-          destruct (mIncludedDec (myEqDec_labels A) (map (myLabel B) (pi B)) (map (myLabel A) (pi A))) as [Hp|Hp];
-          destruct (mIncludedDec (myEqDec_labels A) (map (myLabel B) (tau B)) (map (myLabel A) (tau A))) as [Ht|Ht];
-          rewrite mIncluded_same' in Hp, Ht.
-          -- right; split; apply mIncluded_antisymmetric; auto.
-          -- left; repeat split; auto; right; split; auto.
-          -- left; repeat split; auto; left; split; auto.
-          -- left; repeat split; auto; left; split; auto.
-        - destruct H as [H|H].
-        -- destruct H as [H' H]; destruct H; split; auto. 
-        -- destruct H; split; apply mIncluded_reflexive; auto.
+        intros A B; unfold prec; split; intros H.
+        - destruct (simeqDec A B) as [HS|HS].
+        -- right; apply simeq_same; auto.
+        -- left; split; auto; intros contra; apply HS; apply simeq_same; auto.
+        - destruct H as [[]|]; auto; apply preceq_reflexive; auto.
+    Qed.
+
+    Lemma prec_simeq1 : forall A B C,
+        simeq A B ->
+        prec B C ->
+        prec A C.
+    Proof.
+        unfold prec; intros A B C HS [HP HNS]; split.
+        - eapply preceq_transitive; eauto; apply preceq_reflexive; eauto.
+        - intros HS'; apply HNS; eapply simeq_transitive; [apply simeq_symmetric|]; eauto.
     Qed.
 
 
-    Lemma preceq_preceq : forall A B,
-        prec A B \/ A = B ->
-        preceq A B.
+(** Preceq Hall Violator *)
+
+    Definition notPreceqDomain_fix (A : attackgraph components) (h : list (eventT A)) : list (eventT A) :=
+        filter_fix (fun a => in_dec (myEqDec_event A) a h) (pi A).
+
+    Definition notPreceqRange_fix (A B : attackgraph components) (h : list (eventT A)) : list (eventT B) :=
+        filter_fix (fun b => existsPDec (fun a => trianglelefteqOptionDec (myLabelTagged a) (myLabelTagged b))
+                                        (notPreceqDomain_fix A h)) (pi B).
+
+    Definition notPreceq_fix (A B : attackgraph components) (h : list (eventT A)) : Prop :=
+        le_fix (1 + length (notPreceqRange_fix A B h)) (length (notPreceqDomain_fix A h)).
+
+    Lemma notPreceqDec : forall A B h,
+        {notPreceq_fix A B h} + {~ notPreceq_fix A B h}.
     Proof.
-        intros A B H; apply preceq_correct; 
-        destruct H as [HPrec|HEq]; [left|right];
-        [|subst; apply simeq_reflexive]; auto.
+        intros; apply leDec.
+    Defined.
+
+    Lemma notPreceq_sound : forall A B h,
+        notPreceq_fix A B h ->
+        ~ preceq A B.
+    Proof.
+        intros A B h H H'.
+        unfold notPreceq_fix in H; apply le_same in H.
+
+        assert (exists a0, In a0 (notPreceqDomain_fix A h)) as [a0 Ha0]
+        by (destruct (notPreceqDomain_fix A h) as [|a0 l]; [simpl in H; inversion H | exists a0; simpl; auto]).
+        assert (forall a, In a (notPreceqDomain_fix A h) -> In a (pi A)) as HhPi 
+        by apply filter_origin.
+        assert (inhabited (eventT B)) as Hnmt_B.
+        { destruct H' as [f [_ [_ HTag]]]; specialize (HTag a0).
+          destruct (find (myEqDec_event A) f a0) as [b0|]; eauto.
+          pose proof (HhPi a0 Ha0) as HPi; apply myLabelTagged_some in HPi; destruct HPi as [l Hl].
+          rewrite Hl in HTag; simpl in HTag; contradiction. }
+        apply (preceq_def_to_fun A B Hnmt_B) in H'; destruct H' as [g [Hf [HInj HTag]]].
+        assert (NoDup (map g (notPreceqDomain_fix A h))) as HNd.
+        { apply NoDup_map_NoDup_ForallPairs.
+          - intros x y Hx Hy; apply HInj; split; apply HhPi; auto.
+          - apply filter_NoDup; unfold pi; apply NoDup_nodup. }
+        assert (incl (map g (notPreceqDomain_fix A h)) (notPreceqRange_fix A B h)) as HIncl.
+        { intros b Hb; apply in_map_iff in Hb; destruct Hb as [a [HEq Ha]]; subst.
+          apply P_filter; auto. exists a; split; auto. }        
+        pose proof (NoDup_incl_length _ _ HNd HIncl) as HLen; rewrite length_map in HLen; lia.
     Qed.
 
 End AttackGraphOrdering.
